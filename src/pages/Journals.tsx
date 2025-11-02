@@ -5,6 +5,8 @@ import { Plus, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from "date-fns";
+import { MoodSelector } from "@/components/journals/MoodSelector";
+import { DiaryEntryForm } from "@/components/journals/DiaryEntryForm";
 
 /**
  * Mood emoji mapping for different moods
@@ -40,6 +42,11 @@ const Journals = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [entriesByDate, setEntriesByDate] = useState<Map<string, JournalEntry[]>>(new Map());
   const [loading, setLoading] = useState(true);
+
+  // State for entry creation flow
+  const [showMoodSelector, setShowMoodSelector] = useState(false);
+  const [showEntryForm, setShowEntryForm] = useState(false);
+  const [selectedMood, setSelectedMood] = useState<string>("");
 
   /**
    * Fetch journal entries from Supabase
@@ -130,6 +137,22 @@ const Journals = () => {
    */
   const handleNextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  /**
+   * Handle mood selection - show entry form
+   */
+  const handleMoodSelect = (mood: string) => {
+    setSelectedMood(mood);
+    setShowMoodSelector(false);
+    setShowEntryForm(true);
+  };
+
+  /**
+   * Handle successful entry creation - refresh entries
+   */
+  const handleEntrySuccess = () => {
+    fetchEntries();
   };
 
   const days = getDaysInMonth();
@@ -250,13 +273,25 @@ const Journals = () => {
       {/* Floating Add Button */}
       <button
         className="fixed bottom-24 right-6 w-16 h-16 rounded-full bg-foreground text-background shadow-lg hover:scale-110 transition-transform flex items-center justify-center z-40"
-        onClick={() => {
-          // TODO: Open create entry dialog
-          console.log('Create new entry');
-        }}
+        onClick={() => setShowMoodSelector(true)}
       >
         <Plus className="w-8 h-8" />
       </button>
+
+      {/* Mood Selection Dialog */}
+      <MoodSelector
+        open={showMoodSelector}
+        onClose={() => setShowMoodSelector(false)}
+        onSelectMood={handleMoodSelect}
+      />
+
+      {/* Diary Entry Form */}
+      <DiaryEntryForm
+        open={showEntryForm}
+        onClose={() => setShowEntryForm(false)}
+        mood={selectedMood}
+        onSuccess={handleEntrySuccess}
+      />
 
       <BottomNav />
     </div>
