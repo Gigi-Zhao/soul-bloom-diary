@@ -27,18 +27,26 @@ interface DiaryEntryFormProps {
   onClose: () => void;
   mood: string;
   onSuccess: () => void;
+  entry?: { id: string; content: string; created_at: string } | null;
 }
 
 /**
  * DiaryEntryForm Component
  * Form for creating a new journal entry with selected mood
  */
-export const DiaryEntryForm = ({ open, onClose, mood, onSuccess }: DiaryEntryFormProps) => {
+export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry }: DiaryEntryFormProps) => {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   
   const moodConfig = MOOD_CONFIG[mood] || MOOD_CONFIG.happy;
-  const today = new Date();
+  const entryDate = entry ? new Date(entry.created_at) : new Date();
+
+  // Pre-populate content when viewing existing entry
+  useState(() => {
+    if (entry) {
+      setContent(entry.content);
+    }
+  });
 
   /**
    * Handle saving the diary entry to Supabase
@@ -58,18 +66,33 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess }: DiaryEntryFor
         return;
       }
 
-      const { error } = await supabase
-        .from('journal_entries')
-        .insert({
-          user_id: user.id,
-          mood: mood,
-          content: content.trim(),
-          comment_count: 0,
-        });
+      if (entry) {
+        // Update existing entry
+        const { error } = await supabase
+          .from('journal_entries')
+          .update({
+            content: content.trim(),
+            mood: mood,
+          })
+          .eq('id', entry.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast.success("日记更新成功！");
+      } else {
+        // Create new entry
+        const { error } = await supabase
+          .from('journal_entries')
+          .insert({
+            user_id: user.id,
+            mood: mood,
+            content: content.trim(),
+            comment_count: 0,
+          });
 
-      toast.success("日记保存成功！");
+        if (error) throw error;
+        toast.success("日记保存成功！");
+      }
+
       setContent("");
       onSuccess();
       onClose();
@@ -115,9 +138,9 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess }: DiaryEntryFor
           {/* Date and weather */}
           <div className="flex justify-between items-start mb-6">
             <div>
-              <div className="text-xl font-bold">{format(today, 'EEE.')}</div>
+              <div className="text-xl font-bold">{format(entryDate, 'EEE.')}</div>
               <div className="text-2xl font-bold border-b-2 border-black pb-1">
-                {format(today, 'MM.dd')}
+                {format(entryDate, 'MM.dd')}
               </div>
             </div>
             <Sun className="w-8 h-8" />

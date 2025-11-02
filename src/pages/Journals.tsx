@@ -48,6 +48,7 @@ const Journals = () => {
   const [showMoodSelector, setShowMoodSelector] = useState(false);
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [selectedMood, setSelectedMood] = useState<string>("");
+  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
   /**
    * Fetch journal entries from Supabase
@@ -171,6 +172,15 @@ const Journals = () => {
     fetchEntries();
   };
 
+  /**
+   * Handle clicking on an existing entry to view/edit it
+   */
+  const handleEntryClick = (entry: JournalEntry) => {
+    setSelectedEntry(entry);
+    setSelectedMood(entry.mood);
+    setShowEntryForm(true);
+  };
+
   const days = getDaysInMonth();
   // When collapsed, show today's entries; when expanded, show selected date's entries
   const displayDate = isCalendarCollapsed ? new Date() : selectedDate;
@@ -267,7 +277,11 @@ const Journals = () => {
             {selectedEntries.map((entry) => {
               const moodConfig = MOOD_EMOJIS[entry.mood];
               return (
-                <Card key={entry.id} className="bg-card/80 backdrop-blur">
+                <Card 
+                  key={entry.id} 
+                  className="bg-card/80 backdrop-blur cursor-pointer hover:bg-card transition-colors"
+                  onClick={() => handleEntryClick(entry)}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       {/* Mood Icon */}
@@ -321,9 +335,13 @@ const Journals = () => {
       {/* Diary Entry Form */}
       <DiaryEntryForm
         open={showEntryForm}
-        onClose={() => setShowEntryForm(false)}
+        onClose={() => {
+          setShowEntryForm(false);
+          setSelectedEntry(null);
+        }}
         mood={selectedMood}
         onSuccess={handleEntrySuccess}
+        entry={selectedEntry}
       />
 
       <BottomNav />
