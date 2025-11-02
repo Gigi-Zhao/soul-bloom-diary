@@ -26,6 +26,8 @@ interface JournalEntry {
   content: string;
   mood: string;
   comment_count: number;
+  date?: string;
+  time?: string;
 }
 
 /**
@@ -61,33 +63,34 @@ const Journals = () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) return;
 
       // Get start and end of current month
-      const monthStart = startOfMonth(currentMonth);
-      const monthEnd = endOfMonth(currentMonth);
+      const monthStart = format(startOfMonth(currentMonth), 'yyyy.MM.dd');
+      const monthEnd = format(endOfMonth(currentMonth), 'yyyy.MM.dd');
 
       const { data, error } = await supabase
         .from('journal_entries')
         .select('*')
-        .gte('created_at', monthStart.toISOString())
-        .lte('created_at', monthEnd.toISOString())
-        .order('created_at', { ascending: false });
+        .gte('date', monthStart)
+        .lte('date', monthEnd)
+        .order('date', { ascending: false });
 
       if (error) throw error;
 
       if (data) {
         setEntries(data);
-        
+
         // Group entries by date
         const grouped = new Map<string, JournalEntry[]>();
         data.forEach((entry) => {
-          const dateKey = format(new Date(entry.created_at), 'yyyy-MM-dd');
-          if (!grouped.has(dateKey)) {
-            grouped.set(dateKey, []);
+          const dateKey = entry.date || format(new Date(entry.created_at), 'yyyy-MM-dd');
+          const normalizedKey = dateKey.replace(/\./g, '-');
+          if (!grouped.has(normalizedKey)) {
+            grouped.set(normalizedKey, []);
           }
-          grouped.get(dateKey)?.push(entry);
+          grouped.get(normalizedKey)?.push(entry);
         });
         setEntriesByDate(grouped);
       }
@@ -342,6 +345,7 @@ const Journals = () => {
         mood={selectedMood}
         onSuccess={handleEntrySuccess}
         entry={selectedEntry}
+        selectedDate={selectedDate}
       />
 
       <BottomNav />

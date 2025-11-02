@@ -28,18 +28,19 @@ interface DiaryEntryFormProps {
   mood: string;
   onSuccess: () => void;
   entry?: { id: string; content: string; created_at: string } | null;
+  selectedDate?: Date;
 }
 
 /**
  * DiaryEntryForm Component
  * Form for creating a new journal entry with selected mood
  */
-export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry }: DiaryEntryFormProps) => {
+export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selectedDate }: DiaryEntryFormProps) => {
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
-  
+
   const moodConfig = MOOD_CONFIG[mood] || MOOD_CONFIG.happy;
-  const entryDate = entry ? new Date(entry.created_at) : new Date();
+  const entryDate = entry ? new Date(entry.created_at) : (selectedDate || new Date());
 
   // Pre-populate content when viewing existing entry
   useEffect(() => {
@@ -82,6 +83,10 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry }: DiaryE
         toast.success("日记更新成功！");
       } else {
         // Create new entry
+        const entryDate = selectedDate || new Date();
+        const dateStr = format(entryDate, 'yyyy.MM.dd');
+        const timeStr = format(entryDate, 'HH.mm');
+
         const { error } = await supabase
           .from('journal_entries')
           .insert({
@@ -89,6 +94,8 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry }: DiaryE
             mood: mood,
             content: content.trim(),
             comment_count: 0,
+            date: dateStr,
+            time: timeStr,
           });
 
         if (error) throw error;
