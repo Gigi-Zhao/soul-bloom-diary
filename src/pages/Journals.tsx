@@ -37,6 +37,7 @@ const Journals = () => {
   // State for selected date and current month
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [isCalendarCollapsed, setIsCalendarCollapsed] = useState(false);
   
   // State for journal entries
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -97,15 +98,30 @@ const Journals = () => {
   };
 
   /**
-   * Get all days in the current month view (including padding days)
+   * Get all days in the current month up to today only
+   * Does not show previous month padding or future dates
    */
   const getDaysInMonth = () => {
     const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(currentMonth);
-    const startDate = startOfWeek(monthStart);
-    const endDate = endOfWeek(monthEnd);
+    const today = new Date();
     
-    return eachDayOfInterval({ start: startDate, end: endDate });
+    // If viewing current month, show up to today
+    // If viewing past month, show entire month
+    // If viewing future month, show nothing
+    const currentMonthYear = format(currentMonth, 'yyyy-MM');
+    const todayMonthYear = format(today, 'yyyy-MM');
+    
+    if (currentMonthYear === todayMonthYear) {
+      // Current month: show from start to today
+      return eachDayOfInterval({ start: monthStart, end: today });
+    } else if (currentMonth < today) {
+      // Past month: show entire month
+      const monthEnd = endOfMonth(currentMonth);
+      return eachDayOfInterval({ start: monthStart, end: monthEnd });
+    } else {
+      // Future month: show nothing
+      return [];
+    }
   };
 
   /**
@@ -156,16 +172,25 @@ const Journals = () => {
   };
 
   const days = getDaysInMonth();
-  const selectedEntries = getEntriesForSelectedDate();
+  // When collapsed, show today's entries; when expanded, show selected date's entries
+  const displayDate = isCalendarCollapsed ? new Date() : selectedDate;
+  const displayDateKey = format(displayDate, 'yyyy-MM-dd');
+  const selectedEntries = entriesByDate.get(displayDateKey) || [];
 
   return (
     <div className="min-h-screen pb-24 bg-gradient-to-b from-background to-muted/20">
       {/* Top Section: Mood Calendar */}
       <div className="max-w-md mx-auto px-4 pt-8">
-        {/* Month Navigation */}
-        <div className="flex items-center justify-between mb-6">
+        {/* Month Navigation Header */}
+        <div 
+          className="flex items-center justify-between mb-6 cursor-pointer"
+          onClick={() => setIsCalendarCollapsed(!isCalendarCollapsed)}
+        >
           <button
-            onClick={handlePreviousMonth}
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePreviousMonth();
+            }}
             className="p-2 hover:bg-accent rounded-full transition-colors"
           >
             <ChevronLeft className="w-6 h-6" />
@@ -179,51 +204,59 @@ const Journals = () => {
           </div>
 
           <button
-            onClick={handleNextMonth}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNextMonth();
+            }}
             className="p-2 hover:bg-accent rounded-full transition-colors"
           >
             <ChevronRight className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-6 gap-2 mb-8">
-          {days.map((day, index) => {
-            const mood = getMoodForDate(day);
-            const isSelected = isSameDay(day, selectedDate);
-            const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
-            const moodConfig = mood ? MOOD_EMOJIS[mood] : null;
+        {/* Collapsible Calendar Grid */}
+        {!isCalendarCollapsed && (
+          <div className="grid grid-cols-6 gap-2 mb-8 transition-all duration-300">
+            {days.map((day, index) => {
+              const mood = getMoodForDate(day);
+              const isSelected = isSameDay(day, selectedDate);
+              const moodConfig = mood ? MOOD_EMOJIS[mood] : null;
 
-            return (
-              <button
-                key={index}
-                onClick={() => setSelectedDate(day)}
-                className={`
-                  aspect-square rounded-full flex items-center justify-center text-sm
-                  transition-all duration-200
-                  ${!isCurrentMonth ? 'text-muted-foreground/40' : ''}
-                  ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''}
-                  ${moodConfig ? moodConfig.color : 'border border-border hover:bg-accent'}
-                `}
-              >
-                {moodConfig ? (
-                  <span className="text-2xl">{moodConfig.emoji}</span>
-                ) : (
-                  <span className={isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/40'}>
-                    {format(day, 'd')}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={index}
+                  onClick={() => setSelectedDate(day)}
+                  className={`
+                    aspect-square flex items-center justify-center text-sm
+                    transition-all duration-200
+                    ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''}
+                    ${moodConfig ? moodConfig.color : 'border border-border hover:bg-accent'}
+                  `}
+                  style={{
+                    borderRadius: moodConfig 
+                      ? '45% 55% 52% 48% / 48% 50% 50% 52%'  // Irregular circle for mood days
+                      : '48% 52% 50% 50% / 52% 48% 52% 48%'  // Irregular circle for empty days
+                  }}
+                >
+                  {moodConfig ? (
+                    <span className="text-2xl">{moodConfig.emoji}</span>
+                  ) : (
+                    <span className="text-foreground">
+                      {format(day, 'd')}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Bottom Section: Journal Entries Feed */}
       <div className="max-w-md mx-auto px-4">
         {/* Selected Date Header */}
         <div className="mb-4 text-lg font-semibold">
-          {format(selectedDate, 'M月d日 EEEE', { locale: undefined })}
+          {format(isCalendarCollapsed ? new Date() : selectedDate, 'M月d日 EEEE', { locale: undefined })}
         </div>
 
         {/* Entries List */}
