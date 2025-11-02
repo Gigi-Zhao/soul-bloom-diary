@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Check, Sun } from "lucide-react";
@@ -42,11 +42,13 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry }: DiaryE
   const entryDate = entry ? new Date(entry.created_at) : new Date();
 
   // Pre-populate content when viewing existing entry
-  useState(() => {
+  useEffect(() => {
     if (entry) {
       setContent(entry.content);
+    } else {
+      setContent("");
     }
-  });
+  }, [entry]);
 
   /**
    * Handle saving the diary entry to Supabase
@@ -134,7 +136,7 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry }: DiaryE
         </div>
 
         {/* Entry card */}
-        <div className="mx-4 bg-white border-4 border-black p-6">
+        <div className="mx-4 mb-6 bg-white border-4 border-black p-6">
           {/* Date and weather */}
           <div className="flex justify-between items-start mb-6">
             <div>
