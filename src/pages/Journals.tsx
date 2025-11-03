@@ -152,11 +152,17 @@ const Journals = () => {
     const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
     setCurrentMonth(newMonth);
     
-    // Set selectedDate to the last available day of the new month
+    // If navigating to current month, select today; otherwise select last day of that month
     const today = new Date();
-    const monthEnd = endOfMonth(newMonth);
-    const lastAvailableDay = newMonth < today ? monthEnd : today;
-    setSelectedDate(lastAvailableDay);
+    const isCurrentMonth = format(newMonth, 'yyyy-MM') === format(today, 'yyyy-MM');
+    
+    if (isCurrentMonth) {
+      setSelectedDate(today);
+    } else {
+      const monthEnd = endOfMonth(newMonth);
+      const lastAvailableDay = newMonth < today ? monthEnd : today;
+      setSelectedDate(lastAvailableDay);
+    }
   };
 
   /**
@@ -166,11 +172,17 @@ const Journals = () => {
     const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
     setCurrentMonth(newMonth);
     
-    // Set selectedDate to the last available day of the new month
+    // If navigating to current month, select today; otherwise select last day of that month
     const today = new Date();
-    const monthEnd = endOfMonth(newMonth);
-    const lastAvailableDay = newMonth < today ? monthEnd : today;
-    setSelectedDate(lastAvailableDay);
+    const isCurrentMonth = format(newMonth, 'yyyy-MM') === format(today, 'yyyy-MM');
+    
+    if (isCurrentMonth) {
+      setSelectedDate(today);
+    } else {
+      const monthEnd = endOfMonth(newMonth);
+      const lastAvailableDay = newMonth < today ? monthEnd : today;
+      setSelectedDate(lastAvailableDay);
+    }
   };
 
   /**
