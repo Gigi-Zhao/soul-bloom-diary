@@ -19,8 +19,10 @@ export type Database = {
           comment_count: number | null
           content: string
           created_at: string
+          date: string | null
           id: string
           mood: string
+          time: string | null
           updated_at: string
           user_id: string
         }
@@ -28,8 +30,10 @@ export type Database = {
           comment_count?: number | null
           content: string
           created_at?: string
+          date?: string | null
           id?: string
           mood: string
+          time?: string | null
           updated_at?: string
           user_id: string
         }
@@ -37,10 +41,39 @@ export type Database = {
           comment_count?: number | null
           content?: string
           created_at?: string
+          date?: string | null
           id?: string
           mood?: string
+          time?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          read: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          read?: boolean
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          read?: boolean
+          receiver_id?: string
+          sender_id?: string
         }
         Relationships: []
       }

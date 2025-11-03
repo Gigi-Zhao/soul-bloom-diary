@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,11 +11,13 @@ import { Users, UserPlus, MessageCircle } from "lucide-react";
  * Features friend list and connection requests
  */
 const Friends = () => {
-  // Sample friends data
+  const navigate = useNavigate();
+  
+  // Sample friends data with IDs
   const friends = [
-    { name: "Emma Wilson", status: "Feeling grateful today", initials: "EW", online: true },
-    { name: "Alex Chen", status: "Taking time for self-care", initials: "AC", online: true },
-    { name: "Sarah Johnson", status: "Reflecting on growth", initials: "SJ", online: false },
+    { id: "friend-1", name: "Emma Wilson", status: "Feeling grateful today", initials: "EW", online: true },
+    { id: "friend-2", name: "Alex Chen", status: "Taking time for self-care", initials: "AC", online: true },
+    { id: "friend-3", name: "Sarah Johnson", status: "Reflecting on growth", initials: "SJ", online: false },
   ];
 
   return (
@@ -49,7 +52,8 @@ const Friends = () => {
           {friends.map((friend, index) => (
             <Card 
               key={index}
-              className="transition-all duration-300 hover:shadow-[0_4px_16px_hsl(var(--primary)/0.2)]"
+              className="transition-all duration-300 hover:shadow-[0_4px_16px_hsl(var(--primary)/0.2)] cursor-pointer"
+              onClick={() => navigate(`/chat/${friend.id}`)}
             >
               <CardHeader>
                 <div className="flex items-center gap-3">
@@ -72,6 +76,10 @@ const Friends = () => {
                     size="sm" 
                     variant="ghost"
                     className="hover:bg-primary/10 hover:text-primary transition-all duration-300"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/chat/${friend.id}`);
+                    }}
                   >
                     <MessageCircle className="w-4 h-4" />
                   </Button>

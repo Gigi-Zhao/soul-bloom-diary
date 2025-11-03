@@ -7,6 +7,7 @@ import Splash from "./pages/Splash";
 import Auth from "./pages/Auth";
 import Journals from "./pages/Journals";
 import Friends from "./pages/Friends";
+import Chat from "./pages/Chat";
 import Moments from "./pages/Moments";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/journals" element={<Journals />} />
           <Route path="/friends" element={<Friends />} />
+          <Route path="/chat/:friendId" element={<Chat />} />
           <Route path="/moments" element={<Moments />} />
           <Route path="/profile" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
