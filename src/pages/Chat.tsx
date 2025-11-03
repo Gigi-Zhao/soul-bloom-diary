@@ -133,23 +133,88 @@ const Chat = () => {
         setNewMessage("");
         scrollToBottom();
 
-        // Send automatic reply after a brief delay
-        setTimeout(async () => {
-          try {
+        // Call AI backend to get character reply and store it
+        try {
+          // Prefer env-based base URL for local dev; use relative path in production
+          const apiBase = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
+          const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/chat` : '/api/chat';
+          const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/chat';
+
+          const makeRequest = async (url: string) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+            try {
+              const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'deepseek/deepseek-chat-v3.1:free',
+                  messages: [
+                    { role: 'system', content: `You are ${friendName}. Reply concisely.` },
+                    { role: 'user', content: newMessage.trim() },
+                  ],
+                }),
+                signal: controller.signal,
+                cache: 'no-store',
+              });
+              return res;
+            } finally {
+              clearTimeout(timeoutId);
+            }
+          };
+
+          // Try primary endpoint first
+          let aiRes = await makeRequest(primaryEndpoint);
+
+          // If 404, retry with fallback absolute vercel URL
+          if (aiRes.status === 404 && primaryEndpoint !== fallbackEndpoint) {
+            aiRes = await makeRequest(fallbackEndpoint);
+          }
+
+          if (!aiRes.ok) {
+            const text = await aiRes.text().catch(() => '');
+            throw new Error(`AI API error: ${aiRes.status} ${text}`);
+          }
+
+          const aiJson = await aiRes.json().catch(() => ({}));
+          const aiText =
+            aiJson?.content ??
+            aiJson?.message?.content ??
+            aiJson?.choices?.[0]?.message?.content ??
+            aiJson?.choices?.[0]?.text ??
+            '';
+
+          if (aiText) {
             const { error: replyError } = await supabase
               .from('messages')
               .insert({
                 sender_id: friendId,
                 receiver_id: currentUserId,
-                content: "I've always been here.",
+                content: aiText,
               });
             if (replyError) {
-              console.error('Error sending reply:', replyError);
+              console.error('Error saving AI reply:', replyError);
+              toast({
+                title: 'Error saving AI reply',
+                description: replyError.message,
+                variant: 'destructive',
+              });
+            } else {
+              scrollToBottom();
             }
-          } catch (err) {
-            console.error('Error in reply:', err);
           }
-        }, 800);
+        } catch (err: any) {
+          console.error('AI chat error:', err);
+          toast({
+            title: 'AI chat error',
+            description: err?.name === 'AbortError'
+              ? 'Request timeout. Please retry.'
+              : (err?.message ?? 'Failed to get AI reply'),
+            variant: 'destructive',
+          });
+        }
       }
     } catch (err) {
       console.error('Error in handleSendMessage:', err);
