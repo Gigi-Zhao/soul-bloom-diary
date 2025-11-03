@@ -211,9 +211,8 @@ const Journals = () => {
   };
 
   const days = getDaysInMonth();
-  // When collapsed, show today's entries; when expanded, show selected date's entries
-  const displayDate = isCalendarCollapsed ? new Date() : selectedDate;
-  const displayDateKey = format(displayDate, 'yyyy-MM-dd');
+  // Always show selected date's entries, regardless of calendar state
+  const displayDateKey = format(selectedDate, 'yyyy-MM-dd');
   const selectedEntries = entriesByDate.get(displayDateKey) || [];
 
   return (
@@ -295,7 +294,7 @@ const Journals = () => {
       <div className="max-w-md mx-auto px-4">
         {/* Selected Date Header */}
         <div className="mb-4 text-lg font-semibold">
-          {format(isCalendarCollapsed ? new Date() : selectedDate, 'M月d日 EEEE', { locale: undefined })}
+          {format(selectedDate, 'M月d日 EEEE', { locale: undefined })}
         </div>
 
         {/* Entries List */}
