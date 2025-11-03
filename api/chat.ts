@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 			return res.status(400).json({ error: "Invalid request: messages required" });
 		}
 
-		const usedModel = typeof model === "string" && model.trim() ? model : "deepseek/deepseek-chat";
+		const usedModel = typeof model === "string" && model.trim() ? model : "minimax/minimax-m2:free";
 
 		const openrouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
 			method: "POST",

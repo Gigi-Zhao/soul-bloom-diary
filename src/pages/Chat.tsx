@@ -150,7 +150,7 @@ const Chat = () => {
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                  model: 'deepseek/deepseek-chat-v3.1:free',
+                  model: 'minimax/minimax-m2:free',
                   messages: [
                     { role: 'system', content: `You are ${friendName}. Reply concisely.` },
                     { role: 'user', content: newMessage.trim() },
