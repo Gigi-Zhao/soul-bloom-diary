@@ -54,21 +54,26 @@ const Chat = () => {
     // Fetch messages
     fetchMessages();
 
-    // Subscribe to new messages
+    // Subscribe to new messages - listen for all messages between these two users
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel(`messages-${currentUserId}-${friendId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `sender_id=in.(${currentUserId},${friendId}),receiver_id=in.(${currentUserId},${friendId})`
+          table: 'messages'
         },
         (payload) => {
           const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
-          scrollToBottom();
+          // Only add messages that are between this conversation pair
+          if (
+            (newMsg.sender_id === currentUserId && newMsg.receiver_id === friendId) ||
+            (newMsg.sender_id === friendId && newMsg.receiver_id === currentUserId)
+          ) {
+            setMessages((prev) => [...prev, newMsg]);
+            scrollToBottom();
+          }
         }
       )
       .subscribe();
@@ -88,6 +93,7 @@ const Chat = () => {
       .order('created_at', { ascending: true });
 
     if (error) {
+      console.error('Error loading messages:', error);
       toast({
         title: "Error loading messages",
         description: error.message,
@@ -107,34 +113,51 @@ const Chat = () => {
     e.preventDefault();
     if (!newMessage.trim() || !currentUserId || !friendId) return;
 
-    const { error } = await supabase
-      .from('messages')
-      .insert({
-        sender_id: currentUserId,
-        receiver_id: friendId,
-        content: newMessage.trim(),
-      });
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: currentUserId,
+          receiver_id: friendId,
+          content: newMessage.trim(),
+        });
 
-    if (error) {
+      if (error) {
+        console.error('Error sending message:', error);
+        toast({
+          title: "Error sending message",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        setNewMessage("");
+        scrollToBottom();
+
+        // Send automatic reply after a brief delay
+        setTimeout(async () => {
+          try {
+            const { error: replyError } = await supabase
+              .from('messages')
+              .insert({
+                sender_id: friendId,
+                receiver_id: currentUserId,
+                content: "I've always been here.",
+              });
+            if (replyError) {
+              console.error('Error sending reply:', replyError);
+            }
+          } catch (err) {
+            console.error('Error in reply:', err);
+          }
+        }, 800);
+      }
+    } catch (err) {
+      console.error('Error in handleSendMessage:', err);
       toast({
         title: "Error sending message",
-        description: error.message,
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
-    } else {
-      setNewMessage("");
-      scrollToBottom();
-
-      // Send automatic reply after a brief delay
-      setTimeout(async () => {
-        await supabase
-          .from('messages')
-          .insert({
-            sender_id: friendId,
-            receiver_id: currentUserId,
-            content: "I've always been here.",
-          });
-      }, 800);
     }
   };
 
