@@ -27,9 +27,9 @@ const Chat = () => {
 
   // Mock friend data - in production, fetch from profiles table
   const mockFriends: Record<string, { name: string; initials: string }> = {
-    "friend-1": { name: "Emma Wilson", initials: "EW" },
-    "friend-2": { name: "Alex Chen", initials: "AC" },
-    "friend-3": { name: "Sarah Johnson", initials: "SJ" },
+    "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11": { name: "Emma Wilson", initials: "EW" },
+    "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22": { name: "Alex Chen", initials: "AC" },
+    "c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33": { name: "Sarah Johnson", initials: "SJ" },
   };
 
   useEffect(() => {

@@ -13,11 +13,11 @@ import { Users, UserPlus, MessageCircle } from "lucide-react";
 const Friends = () => {
   const navigate = useNavigate();
   
-  // Sample friends data with IDs
+  // Sample friends data with UUID-format IDs (in production, these would be real user UUIDs from profiles table)
   const friends = [
-    { id: "friend-1", name: "Emma Wilson", status: "Feeling grateful today", initials: "EW", online: true },
-    { id: "friend-2", name: "Alex Chen", status: "Taking time for self-care", initials: "AC", online: true },
-    { id: "friend-3", name: "Sarah Johnson", status: "Reflecting on growth", initials: "SJ", online: false },
+    { id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", name: "Emma Wilson", status: "Feeling grateful today", initials: "EW", online: true },
+    { id: "b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22", name: "Alex Chen", status: "Taking time for self-care", initials: "AC", online: true },
+    { id: "c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33", name: "Sarah Johnson", status: "Reflecting on growth", initials: "SJ", online: false },
   ];
 
   return (
