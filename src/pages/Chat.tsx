@@ -13,6 +13,8 @@ interface Message {
   receiver_id: string;
   content: string;
   created_at: string;
+  sender_name?: string;
+  sender_avatar?: string;
 }
 
 const Chat = () => {
@@ -122,6 +124,17 @@ const Chat = () => {
     } else {
       setNewMessage("");
       scrollToBottom();
+
+      // Send automatic reply after a brief delay
+      setTimeout(async () => {
+        await supabase
+          .from('messages')
+          .insert({
+            sender_id: friendId,
+            receiver_id: currentUserId,
+            content: "I've always been here.",
+          });
+      }, 800);
     }
   };
 
@@ -155,26 +168,48 @@ const Chat = () => {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.map((message) => {
           const isSent = message.sender_id === currentUserId;
+          const senderName = isSent ? "You" : friendName;
           return (
             <div
               key={message.id}
-              className={`flex ${isSent ? "justify-end" : "justify-start"}`}
+              className={`flex gap-2 ${isSent ? "justify-end" : "justify-start"}`}
             >
-              <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                  isSent
-                    ? "bg-gradient-to-r from-primary to-accent text-white"
-                    : "bg-muted text-foreground"
-                }`}
-              >
-                <p className="text-sm">{message.content}</p>
-                <p className={`text-xs mt-1 ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
-                  {new Date(message.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
+              {!isSent && (
+                <Avatar className="w-8 h-8 flex-shrink-0 mt-1">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${friendName}`} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-xs">
+                    {friend?.initials || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+              <div className={`flex flex-col ${isSent ? "items-end" : "items-start"}`}>
+                {!isSent && (
+                  <p className="text-xs text-muted-foreground mb-1 px-2">{senderName}</p>
+                )}
+                <div
+                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+                    isSent
+                      ? "bg-gradient-to-r from-primary to-accent text-white"
+                      : "bg-muted text-foreground"
+                  }`}
+                >
+                  <p className="text-sm">{message.content}</p>
+                  <p className={`text-xs mt-1 ${isSent ? "text-white/70" : "text-muted-foreground"}`}>
+                    {new Date(message.created_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
               </div>
+              {isSent && (
+                <Avatar className="w-8 h-8 flex-shrink-0 mt-1">
+                  <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user`} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-xs">
+                    U
+                  </AvatarFallback>
+                </Avatar>
+              )}
             </div>
           );
         })}
