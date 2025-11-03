@@ -84,13 +84,13 @@ const Journals = () => {
 
         // Group entries by date
         const grouped = new Map<string, JournalEntry[]>();
-        data.forEach((entry) => {
+        data.forEach((entry: any) => {
           const dateKey = entry.date || format(new Date(entry.created_at), 'yyyy-MM-dd');
           const normalizedKey = dateKey.replace(/\./g, '-');
           if (!grouped.has(normalizedKey)) {
             grouped.set(normalizedKey, []);
           }
-          grouped.get(normalizedKey)?.push(entry);
+          grouped.get(normalizedKey)?.push(entry as JournalEntry);
         });
         setEntriesByDate(grouped);
       }
@@ -149,14 +149,28 @@ const Journals = () => {
    * Navigate to previous month
    */
   const handlePreviousMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+    setCurrentMonth(newMonth);
+    
+    // Set selectedDate to the last available day of the new month
+    const today = new Date();
+    const monthEnd = endOfMonth(newMonth);
+    const lastAvailableDay = newMonth < today ? monthEnd : today;
+    setSelectedDate(lastAvailableDay);
   };
 
   /**
    * Navigate to next month
    */
   const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+    setCurrentMonth(newMonth);
+    
+    // Set selectedDate to the last available day of the new month
+    const today = new Date();
+    const monthEnd = endOfMonth(newMonth);
+    const lastAvailableDay = newMonth < today ? monthEnd : today;
+    setSelectedDate(lastAvailableDay);
   };
 
   /**

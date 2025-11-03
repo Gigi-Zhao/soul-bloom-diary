@@ -27,7 +27,7 @@ interface DiaryEntryFormProps {
   onClose: () => void;
   mood: string;
   onSuccess: () => void;
-  entry?: { id: string; content: string; created_at: string } | null;
+  entry?: { id: string; content: string; created_at: string; date?: string; time?: string } | null;
   selectedDate?: Date;
 }
 
@@ -40,7 +40,10 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selected
   const [saving, setSaving] = useState(false);
 
   const moodConfig = MOOD_CONFIG[mood] || MOOD_CONFIG.happy;
-  const entryDate = entry ? new Date(entry.created_at) : (selectedDate || new Date());
+  // Use entry.date if available, otherwise fall back to created_at or selectedDate
+  const entryDate = entry 
+    ? (entry.date ? new Date(entry.date.replace(/\./g, '-')) : new Date(entry.created_at))
+    : (selectedDate || new Date());
 
   // Pre-populate content when viewing existing entry
   useEffect(() => {
