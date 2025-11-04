@@ -304,13 +304,11 @@ const Chat = () => {
         scrollToBottom();
 
         const reader = aiRes.body.getReader();
-        const decoder = new TextDecoder('utf-8');
+        const decoder = new TextDecoder();
         let buffer = '';
-        let fullText = '';
-        let finished = false;
 
         const persistFinal = async () => {
-          const finalText = fullText;
+          const finalText = streamingMessageRef.current;
           if (!finalText) return;
           const { data: aiMsgData, error: aiMsgError } = await supabase
             .from('messages')
@@ -332,6 +330,7 @@ const Chat = () => {
             messageIdsRef.current.add(aiMsgData.id);
             setMessages((prev) => prev.map(m => m.id === tempId ? aiMsgData : m));
             currentStreamingIdRef.current = null;
+            streamingMessageRef.current = "";
             scrollToBottom();
           }
         };
@@ -350,28 +349,28 @@ const Chat = () => {
             if (line.startsWith('data:')) {
               const dataStr = line.slice(5); // 保留前导空格
               if (dataStr.trim() === '[DONE]') {
-                finished = true;
                 await persistFinal();
                 break;
               } else {
                 // 每个chunk都是纯文本，直接拼接
-                fullText += dataStr;
-                updateStreamingMessage(fullText);
+                streamingMessageRef.current += dataStr;
+                updateStreamingMessage(streamingMessageRef.current);
               }
             }
           }
-          if (finished) break;
         }
 
         // Flush tail if last partial line exists
         const tail = buffer.replace(/\r$/, '');
-        if (!finished && tail && tail.startsWith('data:')) {
+        if (tail && tail.startsWith('data:')) {
           const dataStr = tail.slice(5);
-          if (dataStr && dataStr.trim() !== '[DONE]') {
-            fullText += dataStr;
-            updateStreamingMessage(fullText);
+          if (dataStr.trim() === '[DONE]') {
+            await persistFinal();
+          } else if (dataStr) {
+            streamingMessageRef.current += dataStr;
+            updateStreamingMessage(streamingMessageRef.current);
+            await persistFinal();
           }
-          await persistFinal();
         }
       } catch (err: any) {
         console.error('AI chat error:', err);
