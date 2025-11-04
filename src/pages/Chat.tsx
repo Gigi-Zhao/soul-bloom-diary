@@ -45,6 +45,22 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdsRef = useRef<Set<string>>(new Set());
+  const streamingMessageRef = useRef<string>("");
+  const currentStreamingIdRef = useRef<string | null>(null);
+
+  // Function to update streaming message in UI
+  const updateStreamingMessage = (content: string) => {
+    if (!currentStreamingIdRef.current) return;
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === currentStreamingIdRef.current
+          ? { ...msg, content }
+          : msg
+      )
+    );
+    scrollToBottom();
+  };
 
   useEffect(() => {
     const initializeChat = async () => {
