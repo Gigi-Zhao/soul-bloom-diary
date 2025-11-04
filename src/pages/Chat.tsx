@@ -42,7 +42,9 @@ const Chat = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [aiRole, setAiRole] = useState<AIRole | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const initializeChat = async () => {
@@ -128,13 +130,17 @@ const Chat = () => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`
+          table: 'messages'
         },
         (payload) => {
           const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
-          scrollToBottom();
+
+          // Only add if it's for this conversation and not already in the list
+          if (newMsg.conversation_id === conversationId && !messageIdsRef.current.has(newMsg.id)) {
+            messageIdsRef.current.add(newMsg.id);
+            setMessages((prev) => [...prev, newMsg]);
+            scrollToBottom();
+          }
         }
       )
       .subscribe();
@@ -161,7 +167,9 @@ const Chat = () => {
         variant: "destructive",
       });
     } else {
-      setMessages(data || []);
+      const messageData = data || [];
+      setMessages(messageData);
+      messageIdsRef.current = new Set(messageData.map(m => m.id));
       setTimeout(scrollToBottom, 100);
     }
   };
@@ -172,20 +180,23 @@ const Chat = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !conversationId || !aiRole) return;
+    if (!newMessage.trim() || !conversationId || !aiRole || !currentUserId) return;
 
     const userMessageContent = newMessage.trim();
     setNewMessage("");
+    setIsLoading(true);
 
     try {
       // Insert user message
-      const { error: userMsgError } = await supabase
+      const { data: userMsgData, error: userMsgError } = await supabase
         .from('messages')
         .insert({
           conversation_id: conversationId,
           sender_role: 'user',
           content: userMessageContent,
-        });
+        })
+        .select()
+        .single();
 
       if (userMsgError) {
         console.error('Error sending message:', userMsgError);
@@ -194,7 +205,15 @@ const Chat = () => {
           description: userMsgError.message,
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
+      }
+
+      // Add user message to UI immediately
+      if (userMsgData) {
+        messageIdsRef.current.add(userMsgData.id);
+        setMessages((prev) => [...prev, userMsgData]);
+        scrollToBottom();
       }
 
       // Fetch conversation history for context
@@ -206,7 +225,7 @@ const Chat = () => {
         .limit(20);
 
       const conversationHistory = historyData || [];
-      
+
       // Prepare messages for AI
       const aiMessages = [
         { role: 'system', content: aiRole.prompt },
@@ -257,13 +276,15 @@ const Chat = () => {
 
         if (aiText) {
           // Insert AI response
-          const { error: aiMsgError } = await supabase
+          const { data: aiMsgData, error: aiMsgError } = await supabase
             .from('messages')
             .insert({
               conversation_id: conversationId,
               sender_role: 'ai',
               content: aiText,
-            });
+            })
+            .select()
+            .single();
 
           if (aiMsgError) {
             console.error('Error saving AI reply:', aiMsgError);
@@ -272,6 +293,11 @@ const Chat = () => {
               description: aiMsgError.message,
               variant: 'destructive',
             });
+          } else if (aiMsgData) {
+            // Add AI message to UI immediately
+            messageIdsRef.current.add(aiMsgData.id);
+            setMessages((prev) => [...prev, aiMsgData]);
+            scrollToBottom();
           }
         }
       } catch (err: any) {
@@ -289,6 +315,8 @@ const Chat = () => {
         description: "发生未知错误",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -382,12 +410,13 @@ const Chat = () => {
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type a message..."
           className="flex-1"
+          disabled={isLoading}
         />
         <Button
           type="submit"
           size="icon"
           className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
-          disabled={!newMessage.trim()}
+          disabled={!newMessage.trim() || isLoading}
         >
           <Send className="w-5 h-5" />
         </Button>
