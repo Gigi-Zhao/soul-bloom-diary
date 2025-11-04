@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_roles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          description: string | null
+          id: string
+          model: string
+          name: string
+          prompt: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          model?: string
+          name: string
+          prompt: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          model?: string
+          name?: string
+          prompt?: string
+        }
+        Relationships: []
+      }
+      conversations: {
+        Row: {
+          ai_role_id: string
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_role_id: string
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_role_id?: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_ai_role_id_fkey"
+            columns: ["ai_role_id"]
+            isOneToOne: false
+            referencedRelation: "ai_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_entries: {
         Row: {
           comment_count: number | null
@@ -53,31 +125,36 @@ export type Database = {
       messages: {
         Row: {
           content: string
+          conversation_id: string
           created_at: string
           id: string
-          read: boolean
-          receiver_id: string
-          sender_id: string
+          sender_role: Database["public"]["Enums"]["sender_role"]
         }
         Insert: {
           content: string
+          conversation_id: string
           created_at?: string
           id?: string
-          read?: boolean
-          receiver_id: string
-          sender_id: string
+          sender_role: Database["public"]["Enums"]["sender_role"]
         }
         Update: {
           content?: string
+          conversation_id?: string
           created_at?: string
           id?: string
-          read?: boolean
-          receiver_id?: string
-          sender_id?: string
+          sender_role?: Database["public"]["Enums"]["sender_role"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      profiles: {
+      users: {
         Row: {
           avatar_url: string | null
           bio: string | null
@@ -115,7 +192,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      sender_role: "user" | "ai" | "system"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -242,6 +319,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      sender_role: ["user", "ai", "system"],
+    },
   },
 } as const
