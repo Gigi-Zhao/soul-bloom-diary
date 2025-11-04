@@ -25,7 +25,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/journals" element={<Journals />} />
           <Route path="/friends" element={<Friends />} />
-          <Route path="/chat/:friendId" element={<Chat />} />
+          <Route path="/chat/:roleId" element={<Chat />} />
           <Route path="/moments" element={<Moments />} />
           <Route path="/profile" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
