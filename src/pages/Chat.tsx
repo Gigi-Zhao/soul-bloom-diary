@@ -251,7 +251,7 @@ const Chat = () => {
         }))
       ];
 
-      // Call OpenRouter API
+      // Call OpenRouter API (SSE streaming)
       try {
         const apiBase = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
         const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/chat` : '/api/chat';
@@ -259,7 +259,7 @@ const Chat = () => {
 
         const makeRequest = async (url: string) => {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
           try {
             const res = await fetch(url, {
               method: 'POST',
@@ -276,44 +276,119 @@ const Chat = () => {
             clearTimeout(timeoutId);
           }
         };
-
+        // Start request
         let aiRes = await makeRequest(primaryEndpoint);
         if (aiRes.status === 404 && primaryEndpoint !== fallbackEndpoint) {
           aiRes = await makeRequest(fallbackEndpoint);
         }
 
-        if (!aiRes.ok) {
+        if (!aiRes.ok || !aiRes.body) {
           const text = await aiRes.text().catch(() => '');
           throw new Error(`AI API error: ${aiRes.status} ${text}`);
         }
 
-        const aiJson = await aiRes.json();
-        const aiText = aiJson?.content ?? aiJson?.choices?.[0]?.message?.content ?? '';
+        // Add a temporary streaming AI message to UI
+        const tempId = `streaming-${Date.now()}`;
+        currentStreamingIdRef.current = tempId;
+        streamingMessageRef.current = "";
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: tempId,
+            conversation_id: conversationId,
+            sender_role: 'ai',
+            content: "",
+            created_at: new Date().toISOString(),
+          } as Message,
+        ]);
+        scrollToBottom();
 
-        if (aiText) {
-          // Insert AI response
-          const { data: aiMsgData, error: aiMsgError } = await supabase
-            .from('messages')
-            .insert({
-              conversation_id: conversationId,
-              sender_role: 'ai',
-              content: aiText,
-            })
-            .select()
-            .single();
+        const reader = aiRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let event: string | null = null;
+        let dataLines: string[] = [];
 
-          if (aiMsgError) {
-            console.error('Error saving AI reply:', aiMsgError);
-            toast({
-              title: 'Error saving AI reply',
-              description: aiMsgError.message,
-              variant: 'destructive',
-            });
-          } else if (aiMsgData) {
-            // Add AI message to UI immediately
-            messageIdsRef.current.add(aiMsgData.id);
-            setMessages((prev) => [...prev, aiMsgData]);
-            scrollToBottom();
+        const flushEvent = async () => {
+          if (event === 'token') {
+            const token = dataLines.join('\n');
+            if (token) {
+              streamingMessageRef.current += token;
+              updateStreamingMessage(streamingMessageRef.current);
+            }
+          } else if (event === 'error') {
+            const payload = dataLines.join('\n');
+            throw new Error(payload);
+          } else if (event === 'done') {
+            const finalText = streamingMessageRef.current;
+            if (finalText) {
+              // Persist AI message once
+              const { data: aiMsgData, error: aiMsgError } = await supabase
+                .from('messages')
+                .insert({
+                  conversation_id: conversationId,
+                  sender_role: 'ai',
+                  content: finalText,
+                })
+                .select()
+                .single();
+              if (aiMsgError) {
+                console.error('Error saving AI reply:', aiMsgError);
+                toast({
+                  title: 'Error saving AI reply',
+                  description: aiMsgError.message,
+                  variant: 'destructive',
+                });
+              } else if (aiMsgData) {
+                // Replace temporary message with persisted one
+                messageIdsRef.current.add(aiMsgData.id);
+                setMessages((prev) => prev.map(m => m.id === tempId ? aiMsgData : m));
+                currentStreamingIdRef.current = null;
+                streamingMessageRef.current = "";
+                scrollToBottom();
+              }
+            }
+          }
+          // reset holder
+          event = null;
+          dataLines = [];
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Parse SSE: lines, blank line separates events
+          let idx: number;
+          while ((idx = buffer.indexOf('\n')) !== -1) {
+            const line = buffer.slice(0, idx).replace(/\r$/, '');
+            buffer = buffer.slice(idx + 1);
+            if (line === '') {
+              // end of one event
+              if (event || dataLines.length) {
+                await flushEvent();
+              }
+              continue;
+            }
+            if (line.startsWith('event:')) {
+              event = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              dataLines.push(line.slice(5).trim());
+            }
+          }
+        }
+
+        // Flush tail
+        if (buffer.trim()) {
+          const lines = buffer.split(/\r?\n/);
+          for (const line of lines) {
+            if (!line) continue;
+            if (line.startsWith('event:')) event = line.slice(6).trim();
+            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+          }
+          if (event || dataLines.length) {
+            await flushEvent();
           }
         }
       } catch (err: any) {
@@ -437,6 +512,8 @@ const Chat = () => {
           <Send className="w-5 h-5" />
         </Button>
       </form>
+
+      {/* 流式内容已直接更新到消息列表中的临时气泡 */}
     </div>
   );
 };
