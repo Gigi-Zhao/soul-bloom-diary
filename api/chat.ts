@@ -72,55 +72,59 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         const decoder = new TextDecoder();
         const reader = (openrouterRes.body as ReadableStream<Uint8Array>).getReader();
         let buffer = "";
-        const send = (event: string, data: unknown) => {
-            res.write(`event: ${event}\n`);
-            res.write(`data: ${typeof data === "string" ? data : JSON.stringify(data)}\n\n`);
+
+        // Forward as plain text data lines; preserve spaces and newlines
+        const sendData = (text: string) => {
+            res.write(`data: ${text}\n\n`);
         };
 
-        // Forward OpenRouter SSE chunks; normalize to small "token" events for frontend
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
 
-            let lineEnd: number;
-            while ((lineEnd = buffer.indexOf("\n")) !== -1) {
-                const line = buffer.slice(0, lineEnd).trim();
-                buffer = buffer.slice(lineEnd + 1);
+            let idx: number;
+            while ((idx = buffer.indexOf("\n")) !== -1) {
+                const rawLine = buffer.slice(0, idx);
+                buffer = buffer.slice(idx + 1);
+                const line = rawLine.replace(/\r$/, "");
                 if (!line) continue;
                 if (line.startsWith("data:")) {
-                    const dataStr = line.slice(5).trim();
-                    if (dataStr === "[DONE]") {
-                        send("done", "done");
+                    const dataStr = line.slice(5); // do NOT trim to preserve leading spaces
+                    const maybe = dataStr.trim();
+                    if (maybe === "[DONE]") {
+                        sendData("[DONE]");
                         res.end();
                         return;
                     }
                     try {
                         const json = JSON.parse(dataStr);
-                        const delta = json?.choices?.[0]?.delta?.content ?? "";
-                        if (delta) {
-                            send("token", delta);
+                        const delta: string = json?.choices?.[0]?.delta?.content ?? "";
+                        if (delta !== "") {
+                            // emit pure text chunk
+                            sendData(delta);
                         }
                     } catch {
-                        // Forward raw line if not JSON
-                        send("token", dataStr);
+                        // if upstream sends non-JSON data lines, forward as-is
+                        if (dataStr) sendData(dataStr);
                     }
                 }
             }
         }
 
-        // Flush remaining buffer if any
-        if (buffer.trim()) {
+        // Flush remaining buffer if it contains a final JSON
+        const tail = buffer.replace(/\r$/, "");
+        if (tail) {
             try {
-                const json = JSON.parse(buffer.trim());
-                const delta = json?.choices?.[0]?.delta?.content ?? "";
-                if (delta) send("token", delta);
+                const json = JSON.parse(tail);
+                const delta: string = json?.choices?.[0]?.delta?.content ?? "";
+                if (delta !== "") sendData(delta);
             } catch {
-                send("token", buffer.trim());
+                // ignore
             }
         }
 
-        send("done", "done");
+        sendData("[DONE]");
         res.end();
     } catch (err: unknown) {
         res.statusCode = 500;

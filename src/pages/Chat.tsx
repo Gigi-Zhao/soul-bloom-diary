@@ -306,52 +306,33 @@ const Chat = () => {
         const reader = aiRes.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let event: string | null = null;
-        let dataLines: string[] = [];
 
-        const flushEvent = async () => {
-          if (event === 'token') {
-            const token = dataLines.join('\n');
-            if (token) {
-              streamingMessageRef.current += token;
-              updateStreamingMessage(streamingMessageRef.current);
-            }
-          } else if (event === 'error') {
-            const payload = dataLines.join('\n');
-            throw new Error(payload);
-          } else if (event === 'done') {
-            const finalText = streamingMessageRef.current;
-            if (finalText) {
-              // Persist AI message once
-              const { data: aiMsgData, error: aiMsgError } = await supabase
-                .from('messages')
-                .insert({
-                  conversation_id: conversationId,
-                  sender_role: 'ai',
-                  content: finalText,
-                })
-                .select()
-                .single();
-              if (aiMsgError) {
-                console.error('Error saving AI reply:', aiMsgError);
-                toast({
-                  title: 'Error saving AI reply',
-                  description: aiMsgError.message,
-                  variant: 'destructive',
-                });
-              } else if (aiMsgData) {
-                // Replace temporary message with persisted one
-                messageIdsRef.current.add(aiMsgData.id);
-                setMessages((prev) => prev.map(m => m.id === tempId ? aiMsgData : m));
-                currentStreamingIdRef.current = null;
-                streamingMessageRef.current = "";
-                scrollToBottom();
-              }
-            }
+        const persistFinal = async () => {
+          const finalText = streamingMessageRef.current;
+          if (!finalText) return;
+          const { data: aiMsgData, error: aiMsgError } = await supabase
+            .from('messages')
+            .insert({
+              conversation_id: conversationId!,
+              sender_role: 'ai',
+              content: finalText,
+            })
+            .select()
+            .single();
+          if (aiMsgError) {
+            console.error('Error saving AI reply:', aiMsgError);
+            toast({
+              title: 'Error saving AI reply',
+              description: aiMsgError.message,
+              variant: 'destructive',
+            });
+          } else if (aiMsgData) {
+            messageIdsRef.current.add(aiMsgData.id);
+            setMessages((prev) => prev.map(m => m.id === tempId ? aiMsgData : m));
+            currentStreamingIdRef.current = null;
+            streamingMessageRef.current = "";
+            scrollToBottom();
           }
-          // reset holder
-          event = null;
-          dataLines = [];
         };
 
         while (true) {
@@ -359,36 +340,36 @@ const Chat = () => {
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
 
-          // Parse SSE: lines, blank line separates events
           let idx: number;
           while ((idx = buffer.indexOf('\n')) !== -1) {
-            const line = buffer.slice(0, idx).replace(/\r$/, '');
+            const rawLine = buffer.slice(0, idx);
             buffer = buffer.slice(idx + 1);
-            if (line === '') {
-              // end of one event
-              if (event || dataLines.length) {
-                await flushEvent();
+            const line = rawLine.replace(/\r$/, '');
+            if (!line) continue;
+            if (line.startsWith('data:')) {
+              const dataStr = line.slice(5); // 保留前导空格
+              if (dataStr.trim() === '[DONE]') {
+                await persistFinal();
+                break;
+              } else {
+                // 每个chunk都是纯文本，直接拼接
+                streamingMessageRef.current += dataStr;
+                updateStreamingMessage(streamingMessageRef.current);
               }
-              continue;
-            }
-            if (line.startsWith('event:')) {
-              event = line.slice(6).trim();
-            } else if (line.startsWith('data:')) {
-              dataLines.push(line.slice(5).trim());
             }
           }
         }
 
-        // Flush tail
-        if (buffer.trim()) {
-          const lines = buffer.split(/\r?\n/);
-          for (const line of lines) {
-            if (!line) continue;
-            if (line.startsWith('event:')) event = line.slice(6).trim();
-            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
-          }
-          if (event || dataLines.length) {
-            await flushEvent();
+        // Flush tail if last partial line exists
+        const tail = buffer.replace(/\r$/, '');
+        if (tail && tail.startsWith('data:')) {
+          const dataStr = tail.slice(5);
+          if (dataStr.trim() === '[DONE]') {
+            await persistFinal();
+          } else if (dataStr) {
+            streamingMessageRef.current += dataStr;
+            updateStreamingMessage(streamingMessageRef.current);
+            await persistFinal();
           }
         }
       } catch (err: any) {
