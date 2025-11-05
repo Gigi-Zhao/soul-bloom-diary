@@ -17,30 +17,39 @@ export type Database = {
       ai_roles: {
         Row: {
           avatar_url: string | null
+          catchphrase: string | null
           created_at: string
           description: string | null
           id: string
+          mbti_type: string | null
           model: string
           name: string
           prompt: string
+          tags: string[] | null
         }
         Insert: {
           avatar_url?: string | null
+          catchphrase?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          mbti_type?: string | null
           model?: string
           name: string
           prompt: string
+          tags?: string[] | null
         }
         Update: {
           avatar_url?: string | null
+          catchphrase?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          mbti_type?: string | null
           model?: string
           name?: string
           prompt?: string
+          tags?: string[] | null
         }
         Relationships: []
       }

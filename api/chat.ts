@@ -14,10 +14,21 @@ interface VercelResponseLike {
 }
 
 export default async function handler(req: VercelRequestLike, res: VercelResponseLike) {
+    // Handle OPTIONS for CORS
+    if (req.method === "OPTIONS") {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        return res.status(200).end();
+    }
+
     if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
         return res.status(405).json({ error: "Method Not Allowed" });
     }
+
+    // Set CORS headers
+    res.setHeader("Access-Control-Allow-Origin", "*");
 
     try {
         const apiKey = process.env.OPENROUTER_API_KEY;
@@ -26,7 +37,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         }
 
         const body = (req as { body?: unknown }).body as
-            | { model?: string; messages?: Array<{ role: string; content: string }> }
+            | { model?: string; messages?: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> }
             | undefined;
         const model = body?.model;
         const messages = body?.messages;

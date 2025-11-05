@@ -4,7 +4,7 @@ import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, MessageCircle, Sparkles } from "lucide-react";
+import { Users, MessageCircle, Sparkles, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,9 +71,27 @@ const Friends = () => {
           </div>
         ) : (
           <>
+            {/* Create new AI friend button */}
+            <Card 
+              className="transition-all duration-300 hover:shadow-[0_4px_16px_hsl(var(--primary)/0.2)] cursor-pointer bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20"
+              onClick={() => navigate('/create-friend')}
+            >
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center">
+                    <Plus className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-base font-semibold">创建你的专属AI伙伴</CardTitle>
+                    <p className="text-sm text-muted-foreground">点击开始创建</p>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
             {/* AI Companions list */}
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-              <h2 className="text-lg font-semibold text-foreground">AI 伙伴</h2>
+              <h2 className="text-lg font-semibold text-foreground">我的 AI 伙伴</h2>
               
               {aiRoles.map((role, index) => (
                 <Card 

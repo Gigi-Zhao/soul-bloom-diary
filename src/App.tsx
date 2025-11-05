@@ -8,6 +8,8 @@ import Auth from "./pages/Auth";
 import Journals from "./pages/Journals";
 import Friends from "./pages/Friends";
 import Chat from "./pages/Chat";
+import CreateFriend from "./pages/CreateFriend";
+import RoleSetup from "./pages/RoleSetup";
 import Moments from "./pages/Moments";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -26,6 +28,8 @@ const App = () => (
           <Route path="/journals" element={<Journals />} />
           <Route path="/friends" element={<Friends />} />
           <Route path="/chat/:roleId" element={<Chat />} />
+          <Route path="/create-friend" element={<CreateFriend />} />
+          <Route path="/create-friend/setup" element={<RoleSetup />} />
           <Route path="/moments" element={<Moments />} />
           <Route path="/profile" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
