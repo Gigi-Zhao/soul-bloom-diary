@@ -51,16 +51,19 @@ const CreateFriend = () => {
       // Convert image to base64
       const base64Image = imagePreview.split(',')[1];
 
-      // Call API to analyze image
-      const response = await fetch('/api/analyze-character', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image: base64Image,
-        }),
-      });
+      // Call Supabase edge function to analyze image
+      const response = await fetch(
+        'https://sykhapwblxzefdpzvxic.supabase.co/functions/v1/analyze-character',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image: base64Image,
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error('分析失败');
