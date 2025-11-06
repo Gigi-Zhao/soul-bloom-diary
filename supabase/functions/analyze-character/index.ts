@@ -31,7 +31,7 @@ serve(async (req) => {
         "X-Title": "Soul Bloom Diary",
       },
       body: JSON.stringify({
-        model: "mistralai/mistral-small:free",
+        model: "meta-llama/llama-4-maverick:free",
         messages: [
           {
             role: "user",
