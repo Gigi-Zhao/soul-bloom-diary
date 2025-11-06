@@ -126,6 +126,18 @@ const RoleSetup = () => {
 
     setCreating(true);
     try {
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "请先登录",
+          description: "需要登录才能创建AI朋友",
+          variant: "destructive",
+        });
+        navigate('/auth');
+        return;
+      }
+
       // Build prompt using local template function
       const prompt = buildCharacterPrompt({
         name: name.trim(),
@@ -135,8 +147,18 @@ const RoleSetup = () => {
         catchphrase: catchphrase.trim()
       });
 
+      console.log('Attempting to insert AI role:', {
+        name: name.trim(),
+        description: description.trim(),
+        avatar_url: avatarUrl || null,
+        tags: tags,
+        mbti_type: mbtiType || null,
+        catchphrase: catchphrase.trim(),
+        model: 'minimax/minimax-m2:free',
+      });
+
       // Insert into database
-      const { error } = await supabase
+      const { data: insertedData, error } = await supabase
         .from('ai_roles')
         .insert({
           name: name.trim(),
@@ -147,9 +169,15 @@ const RoleSetup = () => {
           catchphrase: catchphrase.trim(),
           prompt: prompt,
           model: 'minimax/minimax-m2:free',
-        });
+        })
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
+
+      console.log('Successfully inserted AI role:', insertedData);
 
       toast({
         title: "创建成功",
@@ -159,9 +187,23 @@ const RoleSetup = () => {
       navigate('/friends');
     } catch (error: unknown) {
       console.error('Error creating friend:', error);
+      
+      let errorMessage = "未知错误";
+      if (error && typeof error === 'object') {
+        if ('message' in error) {
+          errorMessage = String(error.message);
+        }
+        if ('hint' in error) {
+          errorMessage += `\n提示: ${String(error.hint)}`;
+        }
+        if ('details' in error) {
+          errorMessage += `\n详情: ${String(error.details)}`;
+        }
+      }
+      
       toast({
         title: "创建失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

@@ -86,6 +86,9 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
 
+        console.log("OpenRouter response:", JSON.stringify(data, null, 2));
+        console.log("Extracted content:", content);
+
         if (!content) {
             return res.status(500).json({ error: "No response from AI" });
         }
@@ -102,7 +105,9 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             // Extract JSON from the response (in case there's extra text)
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             const jsonStr = jsonMatch ? jsonMatch[0] : content;
+            console.log("Extracted JSON string:", jsonStr);
             const result = JSON.parse(jsonStr);
+            console.log("Parsed result:", result);
             
             character = {
                 name: result.name || "未命名角色",
@@ -110,8 +115,9 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                 tags: Array.isArray(result.tags) ? result.tags : ["神秘", "独特", "有趣"],
                 catchphrase: result.catchphrase || "让我们一起创造精彩的故事吧！"
             };
+            console.log("Final character object:", character);
         } catch (parseError) {
-            console.error("Failed to parse AI response:", content);
+            console.error("Failed to parse AI response:", content, parseError);
             // Return a fallback response
             character = {
                 name: "未命名角色",
@@ -124,12 +130,16 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         // Build system prompt for the AI character
         const prompt = buildCharacterPrompt(character);
 
-        // Return the analyzed character data with generated prompt
-        // The frontend (RoleSetup.tsx) will handle saving to Supabase
-        return res.status(200).json({
+        const responseData = {
             ...character,
             prompt: prompt,
-        });
+        };
+        
+        console.log("Sending response:", responseData);
+
+        // Return the analyzed character data with generated prompt
+        // The frontend (RoleSetup.tsx) will handle saving to Supabase
+        return res.status(200).json(responseData);
     } catch (err: unknown) {
         console.error("Error in analyze-character:", err);
         const message = err instanceof Error ? err.message : "Unexpected server error";
