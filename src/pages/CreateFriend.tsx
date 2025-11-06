@@ -66,7 +66,7 @@ const CreateFriend = () => {
       }
 
       // Prefer env-based base URL for local dev; use relative path in production
-      const apiBase = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
+      const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
       const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/analyze-character` : '/api/analyze-character';
       const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/analyze-character';
 
@@ -97,11 +97,14 @@ const CreateFriend = () => {
       }
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(`分析失败: ${errorText || response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        const errorText = errorData.error || response.statusText;
+        console.error('API error response:', errorData);
+        throw new Error(`分析失败: ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('Analysis result:', data);
       
       // Navigate to role setup page with the analyzed data
       navigate('/create-friend/setup', {
@@ -117,7 +120,7 @@ const CreateFriend = () => {
       console.error('Error analyzing image:', error);
       toast({
         title: "分析失败",
-        description: "无法分析图片，请重试",
+        description: error instanceof Error ? error.message : "无法分析图片，请重试",
         variant: "destructive",
       });
     } finally {

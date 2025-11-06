@@ -1,6 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from '../src/integrations/supabase/types';
-
 interface VercelRequestLike {
     method?: string;
     headers: Record<string, string | undefined>;
@@ -35,17 +32,6 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         if (!apiKey) {
             return res.status(500).json({ error: "Server misconfigured: OPENROUTER_API_KEY missing" });
         }
-
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        
-        if (!supabaseUrl || !supabaseServiceRoleKey) {
-            return res.status(500).json({ error: "Server misconfigured: Supabase credentials missing" });
-        }
-
-        const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
-            auth: { persistSession: false }
-        });
 
         const body = (req as { body?: unknown }).body as { image?: string } | undefined;
         const image = body?.image;
@@ -138,29 +124,11 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         // Build system prompt for the AI character
         const prompt = buildCharacterPrompt(character);
 
-        // Save to Supabase
-        const { data: insertedRole, error: insertError } = await supabase
-            .from('ai_roles')
-            .insert({
-                name: character.name,
-                description: character.description,
-                tags: character.tags,
-                catchphrase: character.catchphrase,
-                prompt: prompt,
-                model: 'minimax/minimax-m2:free'
-            })
-            .select()
-            .single();
-
-        if (insertError) {
-            console.error("Failed to insert AI role:", insertError);
-            return res.status(500).json({ error: "Failed to save character to database" });
-        }
-
+        // Return the analyzed character data with generated prompt
+        // The frontend (RoleSetup.tsx) will handle saving to Supabase
         return res.status(200).json({
             ...character,
             prompt: prompt,
-            id: insertedRole?.id
         });
     } catch (err: unknown) {
         console.error("Error in analyze-character:", err);
