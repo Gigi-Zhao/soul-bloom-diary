@@ -31,7 +31,7 @@ serve(async (req) => {
         "X-Title": "Soul Bloom Diary",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-exp:free",
+        model: "meta-llama/llama-4-maverick:free",
         messages: [
           {
             role: "user",
