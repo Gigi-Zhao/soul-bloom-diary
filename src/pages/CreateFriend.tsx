@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 /**
  * CreateFriend Page
@@ -66,34 +65,85 @@ const CreateFriend = () => {
         base64Image = imagePreview;
       }
 
-      console.log('Invoking Supabase edge function analyze-character');
-      const { data, error } = await supabase.functions.invoke('analyze-character', {
-        body: { image: base64Image },
-      });
+      // Prefer env-based base URL for local dev; use relative path in production
+      const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
+      const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/analyze-character` : '/api/analyze-character';
+      const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/analyze-character';
 
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error((error as any).message || '分析失败');
+      console.log('Starting image analysis...');
+      console.log('Primary endpoint:', primaryEndpoint);
+      console.log('Image size:', base64Image.length, 'characters');
+
+      // Try primary endpoint first with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout after 60 seconds');
+        controller.abort();
+      }, 60000); // 60 second timeout
+
+      try {
+        let response = await fetch(primaryEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            image: `data:${mimeType};base64,${base64Image}`,
+          }),
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        // If 404, retry with fallback absolute vercel URL
+        if (response.status === 404 && primaryEndpoint !== fallbackEndpoint) {
+          console.log('Primary endpoint 404, trying fallback...');
+          response = await fetch(fallbackEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              image: `data:${mimeType};base64,${base64Image}`,
+            }),
+            cache: 'no-store',
+          });
+        }
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorText = errorData.error || response.statusText;
+          console.error('API error response:', errorData);
+          throw new Error(`分析失败: ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('Analysis result:', data);
+
+        // Validate the response data
+        if (!data.name || !data.description || !data.tags || !data.catchphrase) {
+          console.error('Incomplete data received:', data);
+          throw new Error('服务器返回的数据不完整');
+        }
+        
+        // Navigate to role setup page with the analyzed data
+        navigate('/create-friend/setup', {
+          state: {
+            avatarUrl: imagePreview,
+            name: data.name,
+            description: data.description,
+            tags: data.tags,
+            catchphrase: data.catchphrase,
+          },
+        });
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('请求超时，请重试');
+        }
+        throw fetchError;
       }
-
-      console.log('Analysis result:', data);
-
-      // Validate the response data
-      if (!data || !data.name || !data.description || !data.tags || !data.catchphrase) {
-        console.error('Incomplete data received:', data);
-        throw new Error('服务器返回的数据不完整');
-      }
-      
-      // Navigate to role setup page with the analyzed data
-      navigate('/create-friend/setup', {
-        state: {
-          avatarUrl: imagePreview,
-          name: data.name,
-          description: data.description,
-          tags: data.tags,
-          catchphrase: data.catchphrase,
-        },
-      });
     } catch (error) {
       console.error('Error analyzing image:', error);
       toast({
