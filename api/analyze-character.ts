@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                 "X-Title": "Soul Bloom Diary",
             },
             body: JSON.stringify({
-                model: "mistralai/mistral-small-3.2-24b-instruct:free",
+                model: "meta-llama/llama-4-maverick:free",
                 messages: [
                     {
                         role: "user",
