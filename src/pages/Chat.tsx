@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -132,6 +132,30 @@ const Chat = () => {
     initializeChat();
   }, [roleId, navigate, toast]);
 
+  const fetchMessages = useCallback(async () => {
+    if (!conversationId) return;
+
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading messages:', error);
+      toast({
+        title: "Error loading messages",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      const messageData = data || [];
+      setMessages(messageData);
+      messageIdsRef.current = new Set(messageData.map(m => m.id));
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [conversationId, toast]);
+
   useEffect(() => {
     if (!conversationId) return;
 
@@ -164,31 +188,7 @@ const Chat = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId]);
-
-  const fetchMessages = async () => {
-    if (!conversationId) return;
-
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error loading messages:', error);
-      toast({
-        title: "Error loading messages",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      const messageData = data || [];
-      setMessages(messageData);
-      messageIdsRef.current = new Set(messageData.map(m => m.id));
-      setTimeout(scrollToBottom, 100);
-    }
-  };
+  }, [conversationId, fetchMessages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -233,6 +233,7 @@ const Chat = () => {
       }
 
       // Fetch conversation history for context
+      // 限制了最多20条消息
       const { data: historyData } = await supabase
         .from('messages')
         .select('sender_role, content')
@@ -253,7 +254,7 @@ const Chat = () => {
 
       // Call OpenRouter API (SSE streaming)
       try {
-        const apiBase = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
+        const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
         const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/chat` : '/api/chat';
         const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/chat';
 
@@ -372,11 +373,12 @@ const Chat = () => {
             await persistFinal();
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('AI chat error:', err);
+        const error = err instanceof Error ? err : new Error('Unknown error');
         toast({
           title: 'AI回复失败',
-          description: err?.name === 'AbortError' ? '请求超时，请重试' : err?.message ?? '无法获取AI回复',
+          description: error.name === 'AbortError' ? '请求超时，请重试' : error.message ?? '无法获取AI回复',
           variant: 'destructive',
         });
       }

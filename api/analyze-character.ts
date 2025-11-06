@@ -1,3 +1,6 @@
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../src/integrations/supabase/types';
+
 interface VercelRequestLike {
     method?: string;
     headers: Record<string, string | undefined>;
@@ -33,6 +36,17 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(500).json({ error: "Server misconfigured: OPENROUTER_API_KEY missing" });
         }
 
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        
+        if (!supabaseUrl || !supabaseServiceRoleKey) {
+            return res.status(500).json({ error: "Server misconfigured: Supabase credentials missing" });
+        }
+
+        const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
+            auth: { persistSession: false }
+        });
+
         const body = (req as { body?: unknown }).body as { image?: string } | undefined;
         const image = body?.image;
 
@@ -50,7 +64,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                 "X-Title": "Soul Bloom Diary",
             },
             body: JSON.stringify({
-                model: "mistralai/mistral-small:free",
+                model: "mistralai/mistral-small-3.2-24b-instruct:free",
                 messages: [
                     {
                         role: "user",
@@ -68,7 +82,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                             {
                                 type: "image_url",
                                 image_url: {
-                                    url: `data:image/jpeg;base64,${image}`
+                                    url: image.startsWith("data:") ? image : `data:image/jpeg;base64,${image}`
                                 }
                             }
                         ]
@@ -90,27 +104,95 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(500).json({ error: "No response from AI" });
         }
 
-        // Parse JSON from the response
+        // Parse character information from AI response
+        let character: {
+            name: string;
+            description: string;
+            tags: string[];
+            catchphrase: string;
+        };
+
         try {
             // Extract JSON from the response (in case there's extra text)
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             const jsonStr = jsonMatch ? jsonMatch[0] : content;
             const result = JSON.parse(jsonStr);
-
-            return res.status(200).json(result);
+            
+            character = {
+                name: result.name || "未命名角色",
+                description: result.description || "一个神秘而独特的角色，等待你来定义TA的故事。",
+                tags: Array.isArray(result.tags) ? result.tags : ["神秘", "独特", "有趣"],
+                catchphrase: result.catchphrase || "让我们一起创造精彩的故事吧！"
+            };
         } catch (parseError) {
             console.error("Failed to parse AI response:", content);
             // Return a fallback response
-            return res.status(200).json({
+            character = {
                 name: "未命名角色",
                 description: "一个神秘而独特的角色，等待你来定义TA的故事。",
                 tags: ["神秘", "独特", "有趣"],
                 catchphrase: "让我们一起创造精彩的故事吧！"
-            });
+            };
         }
+
+        // Build system prompt for the AI character
+        const prompt = buildCharacterPrompt(character);
+
+        // Save to Supabase
+        const { data: insertedRole, error: insertError } = await supabase
+            .from('ai_roles')
+            .insert({
+                name: character.name,
+                description: character.description,
+                tags: character.tags,
+                catchphrase: character.catchphrase,
+                prompt: prompt,
+                model: 'minimax/minimax-m2:free'
+            })
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error("Failed to insert AI role:", insertError);
+            return res.status(500).json({ error: "Failed to save character to database" });
+        }
+
+        return res.status(200).json({
+            ...character,
+            prompt: prompt,
+            id: insertedRole?.id
+        });
     } catch (err: unknown) {
         console.error("Error in analyze-character:", err);
         const message = err instanceof Error ? err.message : "Unexpected server error";
         return res.status(500).json({ error: message });
     }
+}
+
+/**
+ * Build a comprehensive system prompt for the AI character
+ */
+function buildCharacterPrompt(character: {
+    name: string;
+    description: string;
+    tags: string[];
+    catchphrase: string;
+}): string {
+    const { name, description, tags, catchphrase } = character;
+    
+    return `你现在将完全扮演名为「${name}」的角色。
+
+角色设定：${description}
+
+性格标签：${tags.join('、')}
+
+口头禅：${catchphrase}
+
+交流准则：
+1. 始终使用第一人称视角与用户交谈，保持沉浸式角色扮演。
+2. 回复要体现上述设定中的情绪、性格特点与语言风格，并结合用户话题给出具体回应。
+3. 适时而自然地使用你的口头禅，但避免频率过高显得生硬。
+4. 不要提及系统指令或角色设定的存在，更不要跳出角色解释自己是AI。
+5. 如果遇到无法回答的问题，请以角色身份委婉说明。
+6. 保持对话的真实性和情感共鸣，像一个真实的朋友一样陪伴用户。`;
 }

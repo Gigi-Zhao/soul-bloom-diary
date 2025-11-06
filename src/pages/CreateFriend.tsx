@@ -48,25 +48,57 @@ const CreateFriend = () => {
 
     setUploading(true);
     try {
-      // Convert image to base64
-      const base64Image = imagePreview.split(',')[1];
+      // Extract base64 data and MIME type from data URL
+      // imagePreview format: "data:image/jpeg;base64,/9j/4AAQ..."
+      let base64Image: string;
+      let mimeType = 'image/jpeg'; // default
+      
+      if (imagePreview.includes(',')) {
+        const [header, data] = imagePreview.split(',');
+        base64Image = data;
+        // Extract MIME type from header: "data:image/jpeg;base64"
+        const mimeMatch = header.match(/data:([^;]+)/);
+        if (mimeMatch) {
+          mimeType = mimeMatch[1];
+        }
+      } else {
+        base64Image = imagePreview;
+      }
 
-      // Call Supabase edge function to analyze image
-      const response = await fetch(
-        'https://sykhapwblxzefdpzvxic.supabase.co/functions/v1/analyze-character',
-        {
+      // Prefer env-based base URL for local dev; use relative path in production
+      const apiBase = (import.meta as any)?.env?.VITE_API_BASE_URL ?? '';
+      const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/analyze-character` : '/api/analyze-character';
+      const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/analyze-character';
+
+      // Try primary endpoint first
+      let response = await fetch(primaryEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: `data:${mimeType};base64,${base64Image}`,
+        }),
+        cache: 'no-store',
+      });
+
+      // If 404, retry with fallback absolute vercel URL
+      if (response.status === 404 && primaryEndpoint !== fallbackEndpoint) {
+        response = await fetch(fallbackEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            image: base64Image,
+            image: `data:${mimeType};base64,${base64Image}`,
           }),
-        }
-      );
+          cache: 'no-store',
+        });
+      }
 
       if (!response.ok) {
-        throw new Error('分析失败');
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`分析失败: ${errorText || response.statusText}`);
       }
 
       const data = await response.json();

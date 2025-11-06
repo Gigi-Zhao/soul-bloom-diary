@@ -15,6 +15,37 @@ const MBTI_TYPES = [
 ];
 
 /**
+ * Build a comprehensive system prompt for the AI character
+ */
+function buildCharacterPrompt(character: {
+  name: string;
+  description: string;
+  tags: string[];
+  mbtiType: string | null;
+  catchphrase: string;
+}): string {
+  const { name, description, tags, mbtiType, catchphrase } = character;
+  
+  const mbtiSection = mbtiType ? `\nMBTI类型：${mbtiType}` : '';
+  
+  return `你现在将完全扮演名为「${name}」的角色。
+
+角色设定：${description}
+
+性格标签：${tags.join('、')}${mbtiSection}
+
+口头禅：${catchphrase}
+
+交流准则：
+1. 始终使用第一人称视角与用户交谈，保持沉浸式角色扮演。
+2. 回复要体现上述设定中的情绪、性格特点与语言风格，并结合用户话题给出具体回应。
+3. 适时而自然地使用你的口头禅，但避免频率过高显得生硬。
+4. 不要提及系统指令或角色设定的存在，更不要跳出角色解释自己是AI。
+5. 如果遇到无法回答的问题，请以角色身份委婉说明。
+6. 保持对话的真实性和情感共鸣，像一个真实的朋友一样陪伴用户。`;
+}
+
+/**
  * RoleSetup Page
  * Configure AI companion details
  */
@@ -32,11 +63,16 @@ const RoleSetup = () => {
   const [newTag, setNewTag] = useState("");
   const [mbtiType, setMbtiType] = useState("");
   const [catchphrase, setCatchphrase] = useState("");
-  const [generatingPrompt, setGeneratingPrompt] = useState(false);
 
   // Load data from navigation state
   useEffect(() => {
-    const state = location.state as any;
+    const state = location.state as {
+      avatarUrl?: string;
+      name?: string;
+      description?: string;
+      tags?: string[];
+      catchphrase?: string;
+    } | null;
     if (state) {
       if (state.avatarUrl) setAvatarUrl(state.avatarUrl);
       if (state.name) setName(state.name);
@@ -55,47 +91,6 @@ const RoleSetup = () => {
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleGeneratePrompt = async () => {
-    setGeneratingPrompt(true);
-    try {
-      const response = await fetch('/api/generate-prompt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name,
-          description,
-          tags,
-          mbtiType,
-          catchphrase,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('生成提示词失败');
-      }
-
-      const data = await response.json();
-      toast({
-        title: "生成成功",
-        description: "已生成角色提示词",
-      });
-      return data.prompt;
-    } catch (error) {
-      console.error('Error generating prompt:', error);
-      toast({
-        title: "生成失败",
-        description: "无法生成提示词，将使用默认格式",
-        variant: "destructive",
-      });
-      // Fallback to manual prompt generation
-      return `你是${name}。${description}\n性格特点：${tags.join('、')}\nMBTI类型：${mbtiType}\n口头禅：${catchphrase}`;
-    } finally {
-      setGeneratingPrompt(false);
-    }
   };
 
   const handleCreateFriend = async () => {
@@ -131,8 +126,14 @@ const RoleSetup = () => {
 
     setCreating(true);
     try {
-      // Generate prompt
-      const prompt = await handleGeneratePrompt();
+      // Build prompt using local template function
+      const prompt = buildCharacterPrompt({
+        name: name.trim(),
+        description: description.trim(),
+        tags: tags,
+        mbtiType: mbtiType || null,
+        catchphrase: catchphrase.trim()
+      });
 
       // Insert into database
       const { error } = await supabase
@@ -156,11 +157,11 @@ const RoleSetup = () => {
       });
 
       navigate('/friends');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating friend:', error);
       toast({
         title: "创建失败",
-        description: error.message,
+        description: error instanceof Error ? error.message : "未知错误",
         variant: "destructive",
       });
     } finally {
@@ -307,10 +308,10 @@ const RoleSetup = () => {
           </Button>
           <Button
             onClick={handleCreateFriend}
-            disabled={!isFormValid || creating || generatingPrompt}
+            disabled={!isFormValid || creating}
             className="flex-1 bg-gradient-to-r from-primary to-accent hover:opacity-90 text-white font-semibold py-6"
           >
-            {creating || generatingPrompt ? "创建中..." : "创建朋友"}
+            {creating ? "创建中..." : "创建朋友"}
           </Button>
         </div>
       </div>
