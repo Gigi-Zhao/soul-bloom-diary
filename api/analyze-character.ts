@@ -27,12 +27,19 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
     // Set CORS headers
     res.setHeader("Access-Control-Allow-Origin", "*");
 
+    // Track the current execution stage so logs pinpoint failing steps
+    let step = "init";
+
     try {
+        console.log("[analyze-character] step", step, { method: req.method });
+
+        step = "read-api-key";
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
             return res.status(500).json({ error: "Server misconfigured: OPENROUTER_API_KEY missing" });
         }
 
+        step = "parse-request-body";
         const body = (req as { body?: unknown }).body as { image?: string } | undefined;
         const image = body?.image;
 
@@ -41,6 +48,8 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         }
 
         // Use Mistral Small vision model to analyze the character
+        step = "call-openrouter";
+        console.log("[analyze-character] step", step, { hasImage: true });
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -83,6 +92,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(response.status).json({ error: `Upstream error: ${text}` });
         }
 
+        step = "parse-openrouter-response";
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
 
@@ -94,6 +104,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         }
 
         // Parse character information from AI response
+        step = "parse-character";
         let character: {
             name: string;
             description: string;
@@ -141,7 +152,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         // The frontend (RoleSetup.tsx) will handle saving to Supabase
         return res.status(200).json(responseData);
     } catch (err: unknown) {
-        console.error("Error in analyze-character:", err);
+        console.error("Error in analyze-character at step", step, err);
         const message = err instanceof Error ? err.message : "Unexpected server error";
         return res.status(500).json({ error: message });
     }
