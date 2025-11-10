@@ -60,19 +60,19 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             },
             body: JSON.stringify({
                 model: "mistralai/mistral-small-3.2-24b-instruct:free",
-                messages: [
+                messages: [ 
                     {
                         role: "user",
                         content: [
                             {
                                 type: "text",
                                 text: `分析这张图片中的角色，提取以下信息并以JSON格式返回（仅返回JSON，不要有其他文字）：
-{
-  "name": "角色名字（如果无法识别，给一个合适的名字）",
-  "description": "详细的角色设定和性格特点描述（50-100字）",
-  "tags": ["标签1", "标签2", "标签3"]（3-5个描述性标签）,
-  "catchphrase": "一句符合角色性格的口头禅"
-}`
+                                {
+                                "name": "角色名字（可爱、亲切、具象化的名字，不要泛泛的形容）",
+                                "description": "详细的角色设定和性格特点描述（50-100字），富有文采，文艺且生动",
+                                "tags": ["标签1", "标签2", "标签3"]（3-5个描述性标签）,
+                                "catchphrase": "一句符合角色性格的口头禅"
+                                }`
                             },
                             {
                                 type: "image_url",
