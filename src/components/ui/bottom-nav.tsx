@@ -1,10 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
-import { BookHeart, Users, Sparkles, User } from "lucide-react";
+import { BookHeart, Users, Sparkles, User, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * BottomNav Component
- * iOS-style bottom tab navigation bar with 4 main sections
+ * iOS-style bottom tab navigation bar with main sections
  * Features smooth transitions and visual feedback
  */
 export function BottomNav() {
@@ -16,6 +16,11 @@ export function BottomNav() {
       label: "Journals",
       icon: BookHeart,
       path: "/journals",
+    },
+    {
+      label: "You",
+      icon: Heart,
+      path: "/you",
     },
     {
       label: "Friends",

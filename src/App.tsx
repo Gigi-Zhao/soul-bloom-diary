@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Splash from "./pages/Splash";
 import Auth from "./pages/Auth";
 import Journals from "./pages/Journals";
+import You from "./pages/You";
 import Friends from "./pages/Friends";
 import Chat from "./pages/Chat";
 import CreateFriend from "./pages/CreateFriend";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/" element={<Splash />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/journals" element={<Journals />} />
+          <Route path="/you" element={<You />} />
           <Route path="/friends" element={<Friends />} />
           <Route path="/chat/:roleId" element={<Chat />} />
           <Route path="/create-friend" element={<CreateFriend />} />
