@@ -155,45 +155,34 @@ const You = () => {
           className="absolute inset-0 bg-cover bg-center"
           style={{
             backgroundImage: `url(${aiRole.avatar_url})`,
-            filter: 'blur(8px) brightness(0.7)',
-            transform: 'scale(1.1)',
           }}
         />
         
         {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#f5e6e8]/30 to-[#f5e6e8]" />
+      </div>
+
+      {/* Character Info Section */}
+      <div className="px-6 -mt-8 mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">
+          {aiRole.name}
+        </h1>
         
-        {/* Character Avatar & Info */}
-        <div className="absolute bottom-8 left-0 right-0 px-6 flex flex-col items-center">
-          <Avatar className="w-24 h-24 border-4 border-white shadow-[0_8px_32px_rgba(0,0,0,0.15)] mb-4">
-            <AvatarImage src={aiRole.avatar_url} />
-            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-2xl">
-              {aiRole.name.slice(0, 2)}
-            </AvatarFallback>
-          </Avatar>
-          
-          <h1 className="text-2xl font-bold text-white drop-shadow-lg mb-2">
-            {aiRole.name}
-          </h1>
-          
-          {aiRole.catchphrase && (
-            <div className="bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 mb-3">
-              <p className="text-sm text-gray-700 italic">"{aiRole.catchphrase}"</p>
-            </div>
-          )}
-          
-          <Button 
-            onClick={handleChatClick}
-            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-lg"
-          >
-            <MessageCircle className="w-4 h-4 mr-2" />
-            开始聊天
-          </Button>
-        </div>
+        {aiRole.catchphrase && (
+          <p className="text-sm text-gray-600 italic mb-4">"{aiRole.catchphrase}"</p>
+        )}
+        
+        <Button 
+          onClick={handleChatClick}
+          className="bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-lg"
+        >
+          <MessageCircle className="w-4 h-4 mr-2" />
+          开始聊天
+        </Button>
       </div>
 
       {/* Conversation History Section */}
-      <ScrollArea className="flex-1 px-4 pt-6">
+      <ScrollArea className="flex-1 px-4">
         <div className="max-w-2xl mx-auto space-y-4">
           <div className="flex items-center gap-2 mb-6">
             <Sparkles className="w-5 h-5 text-primary" />
