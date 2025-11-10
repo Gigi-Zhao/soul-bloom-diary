@@ -43,11 +43,11 @@ const You = () => {
           return;
         }
 
-        // Fetch "Soldier" AI role (hardcoded for now)
+        // Fetch "小兵" AI role (hardcoded for now)
         const { data: roleData, error: roleError } = await supabase
           .from('ai_roles')
           .select('id, name, avatar_url, catchphrase')
-          .eq('name', 'Soldier')
+          .eq('name', '小兵')
           .maybeSingle();
 
         if (roleError) throw roleError;
