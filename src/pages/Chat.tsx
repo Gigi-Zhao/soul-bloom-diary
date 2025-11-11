@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ interface Conversation {
 
 const Chat = () => {
   const { roleId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -43,10 +44,12 @@ const Chat = () => {
   const [aiRole, setAiRole] = useState<AIRole | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isNewConversation, setIsNewConversation] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdsRef = useRef<Set<string>>(new Set());
   const streamingMessageRef = useRef<string>("");
   const currentStreamingIdRef = useRef<string | null>(null);
+  const conversationCreatedRef = useRef(false);
 
   // Function to update streaming message in UI
   const updateStreamingMessage = (content: string) => {
@@ -92,45 +95,43 @@ const Chat = () => {
         }
         setAiRole(role);
 
-        // Find or create conversation
-        const { data: existingConv } = await supabase
-          .from('conversations')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('ai_role_id', roleId)
-          .eq('title', `与${role.name}的对话`)
-          .maybeSingle();
-
-        if (existingConv) {
-          setConversationId(existingConv.id);
-        } else {
-          // Create new conversation
-          const { data: newConv, error: convError } = await supabase
+        // Check if conversation ID is passed via URL params
+        const conversationIdParam = searchParams.get('conversation');
+        
+        if (conversationIdParam) {
+          // Load existing conversation
+          const { data: existingConv, error: convError } = await supabase
             .from('conversations')
-            .insert({
-              user_id: user.id,
-              ai_role_id: roleId,
-              title: `与${role.name}的对话`,
-            })
-            .select()
-            .single();
+            .select('*')
+            .eq('id', conversationIdParam)
+            .eq('user_id', user.id)
+            .eq('ai_role_id', roleId)
+            .maybeSingle();
 
-          if (convError) {
-            console.error('Error creating conversation:', convError);
+          if (convError || !existingConv) {
+            console.error('Error fetching conversation:', convError);
             toast({
-              title: "Error creating conversation",
-              description: convError.message,
+              title: "无法加载对话",
+              description: "对话可能已被删除",
               variant: "destructive",
             });
-          } else {
-            setConversationId(newConv.id);
+            navigate(`/you`);
+            return;
           }
+          
+          setConversationId(existingConv.id);
+          setIsNewConversation(false);
+          conversationCreatedRef.current = true;
+        } else {
+          // New conversation - don't create in DB yet, wait for first message
+          setIsNewConversation(true);
+          setConversationId(null);
         }
       }
     };
 
     initializeChat();
-  }, [roleId, navigate, toast]);
+  }, [roleId, searchParams, navigate, toast]);
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
@@ -196,18 +197,66 @@ const Chat = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !conversationId || !aiRole || !currentUserId) return;
+    if (!newMessage.trim() || !aiRole || !currentUserId) return;
 
     const userMessageContent = newMessage.trim();
     setNewMessage("");
     setIsLoading(true);
 
     try {
+      let activeConversationId = conversationId;
+
+      // Create conversation if this is the first message
+      if (!conversationCreatedRef.current && !conversationId) {
+        const timestamp = new Date().toLocaleString('zh-CN', {
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        
+        const { data: newConv, error: convError } = await supabase
+          .from('conversations')
+          .insert({
+            user_id: currentUserId,
+            ai_role_id: roleId,
+            title: `${timestamp} 对话`,
+          })
+          .select()
+          .single();
+
+        if (convError) {
+          console.error('Error creating conversation:', convError);
+          toast({
+            title: "创建对话失败",
+            description: convError.message,
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        activeConversationId = newConv.id;
+        setConversationId(newConv.id);
+        setIsNewConversation(false);
+        conversationCreatedRef.current = true;
+      }
+
+      if (!activeConversationId) {
+        toast({
+          title: "错误",
+          description: "无法创建对话",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       // Insert user message
       const { data: userMsgData, error: userMsgError } = await supabase
         .from('messages')
         .insert({
-          conversation_id: conversationId,
+          conversation_id: activeConversationId,
           sender_role: 'user',
           content: userMessageContent,
         })
@@ -237,7 +286,7 @@ const Chat = () => {
       const { data: historyData } = await supabase
         .from('messages')
         .select('sender_role, content')
-        .eq('conversation_id', conversationId)
+        .eq('conversation_id', activeConversationId)
         .order('created_at', { ascending: true })
         .limit(20);
 
@@ -296,7 +345,7 @@ const Chat = () => {
           ...prev,
           {
             id: tempId,
-            conversation_id: conversationId,
+            conversation_id: activeConversationId,
             sender_role: 'ai',
             content: "",
             created_at: new Date().toISOString(),
@@ -314,7 +363,7 @@ const Chat = () => {
           const { data: aiMsgData, error: aiMsgError } = await supabase
             .from('messages')
             .insert({
-              conversation_id: conversationId!,
+              conversation_id: activeConversationId!,
               sender_role: 'ai',
               content: finalText,
             })
@@ -409,7 +458,7 @@ const Chat = () => {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate("/friends")}
+          onClick={() => navigate("/you")}
           className="hover:bg-primary/10"
         >
           <ArrowLeft className="w-5 h-5" />

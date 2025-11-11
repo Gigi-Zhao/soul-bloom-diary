@@ -126,7 +126,15 @@ const You = () => {
 
   const handleChatClick = () => {
     if (aiRole) {
+      // Start a new conversation (no conversation ID)
       navigate(`/chat/${aiRole.id}`);
+    }
+  };
+
+  const handleConversationClick = (conversationId: string) => {
+    if (aiRole) {
+      // Continue an existing conversation
+      navigate(`/chat/${aiRole.id}?conversation=${conversationId}`);
     }
   };
 
@@ -208,7 +216,8 @@ const You = () => {
                 return (
                   <div
                     key={conv.id}
-                    className="relative animate-in fade-in slide-in-from-bottom-4 duration-700"
+                    onClick={() => handleConversationClick(conv.id)}
+                    className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 cursor-pointer hover:opacity-80 transition-opacity"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
                     {/* Timestamp on the right */}
@@ -242,7 +251,7 @@ const You = () => {
                       
                       <div className={`flex-1 ${isUserInitiated ? '' : ''}`}>
                         <div
-                          className="bg-white/80 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm"
+                          className="bg-white/80 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
                         >
                           <p className="text-base text-gray-800 leading-relaxed mb-2">
                             {conv.first_message}
