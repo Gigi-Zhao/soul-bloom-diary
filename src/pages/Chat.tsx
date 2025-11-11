@@ -258,16 +258,26 @@ ${conversationContext}
     initializeChat();
   }, [roleId, searchParams, navigate, toast]);
 
-  // Generate conversation title when user exits the chat
+  // Handle browser close/refresh to generate title
   useEffect(() => {
-    return () => {
-      // Cleanup function runs when component unmounts (user navigates away)
+    const handleBeforeUnload = () => {
       if (conversationId && !hasGeneratedTitleRef.current) {
-        // Use a small delay to ensure the last message is saved
-        setTimeout(() => {
-          generateConversationTitle();
-        }, 500);
+        // Send beacon for async operation that survives page unload
+        const generateTitleSync = async () => {
+          try {
+            await generateConversationTitle();
+          } catch (error) {
+            console.error('Error generating title on unload:', error);
+          }
+        };
+        generateTitleSync();
       }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [conversationId, generateConversationTitle]);
 
@@ -331,6 +341,14 @@ ${conversationContext}
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleBackClick = async () => {
+    // Generate title before navigating away
+    if (conversationId && !hasGeneratedTitleRef.current) {
+      await generateConversationTitle();
+    }
+    navigate("/you");
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -596,7 +614,7 @@ ${conversationContext}
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate("/you")}
+          onClick={handleBackClick}
           className="hover:bg-primary/10"
         >
           <ArrowLeft className="w-5 h-5" />
