@@ -253,7 +253,8 @@ const You = () => {
                       
                       <div className={`flex-1 ${isUserInitiated ? '' : ''}`}>
                         <div
-                          className="bg-white/80 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
+                          // 调整气泡框的背景色和透明度
+                          className="bg-white/70 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
                         >
                           {/* Display AI-generated title */}
                           <h3 className="text-base font-semibold text-gray-900 mb-2">
