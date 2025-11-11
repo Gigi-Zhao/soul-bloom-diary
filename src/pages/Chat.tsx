@@ -92,7 +92,7 @@ const Chat = () => {
         .map(msg => `${msg.sender_role === 'user' ? '用户' : 'AI'}: ${msg.content}`)
         .join('\n');
 
-      const titlePrompt = `请基于以下对话内容，生成一个简短的对话主题标题（10个字以内，一句话概括）。只返回标题文本，不要其他内容。
+      const titlePrompt = `请基于以下对话内容，生成一个简短的对话主题标题（15个字以内，风格拟人、温柔、自然）。只返回标题文本，不要其他内容。
 
 对话内容：
 ${conversationContext}
