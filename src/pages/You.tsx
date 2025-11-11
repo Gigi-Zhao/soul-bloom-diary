@@ -19,6 +19,7 @@ interface ConversationSummary {
   id: string;
   created_at: string;
   first_message: string;
+  title: string;
   sender_role: 'user' | 'ai';
 }
 
@@ -79,7 +80,7 @@ const You = () => {
         if (roleData?.id) {
           const { data: convData } = await supabase
             .from('conversations')
-            .select('id, created_at')
+            .select('id, created_at, title')
             .eq('user_id', user.id)
             .eq('ai_role_id', roleData.id)
             .order('created_at', { ascending: false })
@@ -100,6 +101,7 @@ const You = () => {
                 return {
                   id: conv.id,
                   created_at: conv.created_at,
+                  title: conv.title || '新对话',
                   first_message: msgData?.content || '开始新对话',
                   sender_role: (msgData?.sender_role === 'system' ? 'ai' : msgData?.sender_role) || 'user' as 'user' | 'ai',
                 };
@@ -253,7 +255,12 @@ const You = () => {
                         <div
                           className="bg-white/80 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
                         >
-                          <p className="text-base text-gray-800 leading-relaxed mb-2">
+                          {/* Display AI-generated title */}
+                          <h3 className="text-base font-semibold text-gray-900 mb-2">
+                            {conv.title}
+                          </h3>
+                          {/* Display first message as preview */}
+                          <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
                             {conv.first_message}
                           </p>
                         </div>

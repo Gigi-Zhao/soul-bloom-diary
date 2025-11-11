@@ -50,6 +50,7 @@ const Chat = () => {
   const streamingMessageRef = useRef<string>("");
   const currentStreamingIdRef = useRef<string | null>(null);
   const conversationCreatedRef = useRef(false);
+  const hasGeneratedTitleRef = useRef(false);
 
   // Function to update streaming message in UI
   const updateStreamingMessage = (content: string) => {
@@ -64,6 +65,130 @@ const Chat = () => {
     );
     scrollToBottom();
   };
+
+  // Function to generate conversation title based on last 5 messages
+  const generateConversationTitle = useCallback(async () => {
+    if (!conversationId || !aiRole || hasGeneratedTitleRef.current) return;
+
+    try {
+      // Fetch last 5 messages
+      const { data: recentMessages, error: fetchError } = await supabase
+        .from('messages')
+        .select('sender_role, content')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (fetchError || !recentMessages || recentMessages.length === 0) {
+        console.log('No messages to summarize');
+        return;
+      }
+
+      // Reverse to get chronological order
+      const messagesForSummary = recentMessages.reverse();
+
+      // Create prompt for title generation
+      const conversationContext = messagesForSummary
+        .map(msg => `${msg.sender_role === 'user' ? '用户' : 'AI'}: ${msg.content}`)
+        .join('\n');
+
+      const titlePrompt = `请基于以下对话内容，生成一个简短的对话主题标题（10个字以内，一句话概括）。只返回标题文本，不要其他内容。
+
+对话内容：
+${conversationContext}
+
+标题：`;
+
+      // Call AI API to generate title
+      const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
+      const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/chat` : '/api/chat';
+      const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/chat';
+
+      const makeRequest = async (url: string) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: aiRole.model,
+              messages: [{ role: 'user', content: titlePrompt }],
+            }),
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      let aiRes = await makeRequest(primaryEndpoint);
+      if (aiRes.status === 404 && primaryEndpoint !== fallbackEndpoint) {
+        aiRes = await makeRequest(fallbackEndpoint);
+      }
+
+      if (!aiRes.ok || !aiRes.body) {
+        console.error('Failed to generate title');
+        return;
+      }
+
+      // Read streaming response
+      const reader = aiRes.body.getReader();
+      const decoder = new TextDecoder();
+      let titleBuffer = '';
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let idx: number;
+        while ((idx = buffer.indexOf('\n')) !== -1) {
+          const rawLine = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 1);
+          const line = rawLine.replace(/\r$/, '');
+          if (!line) continue;
+          if (line.startsWith('data:')) {
+            const dataStr = line.slice(5);
+            if (dataStr.trim() === '[DONE]') {
+              break;
+            } else {
+              titleBuffer += dataStr;
+            }
+          }
+        }
+      }
+
+      // Clean up the title (remove quotes, trim, limit length)
+      const generatedTitle = titleBuffer
+        .trim()
+        .replace(/^["'「『]|["'」』]$/g, '')
+        .substring(0, 30);
+
+      if (!generatedTitle) {
+        console.log('Empty title generated');
+        return;
+      }
+
+      // Update conversation title in database
+      const { error: updateError } = await supabase
+        .from('conversations')
+        .update({ title: generatedTitle })
+        .eq('id', conversationId);
+
+      if (updateError) {
+        console.error('Error updating conversation title:', updateError);
+      } else {
+        console.log('Conversation title updated:', generatedTitle);
+        hasGeneratedTitleRef.current = true;
+      }
+    } catch (error) {
+      console.error('Error generating conversation title:', error);
+    }
+  }, [conversationId, aiRole]);
 
   useEffect(() => {
     const initializeChat = async () => {
@@ -132,6 +257,19 @@ const Chat = () => {
 
     initializeChat();
   }, [roleId, searchParams, navigate, toast]);
+
+  // Generate conversation title when user exits the chat
+  useEffect(() => {
+    return () => {
+      // Cleanup function runs when component unmounts (user navigates away)
+      if (conversationId && !hasGeneratedTitleRef.current) {
+        // Use a small delay to ensure the last message is saved
+        setTimeout(() => {
+          generateConversationTitle();
+        }, 500);
+      }
+    };
+  }, [conversationId, generateConversationTitle]);
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
