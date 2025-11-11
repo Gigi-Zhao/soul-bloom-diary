@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useCachedState } from "@/hooks/use-cached-state";
 
 interface AIRole {
   id: string;
@@ -30,11 +31,17 @@ interface ConversationSummary {
 const You = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [aiRole, setAiRole] = useState<AIRole | null>(null);
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [aiRole, setAiRole] = useCachedState<AIRole | null>('you-ai-role', null);
+  const [conversations, setConversations] = useCachedState<ConversationSummary[]>('you-conversations', []);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Skip fetching if we already have cached data
+    if (aiRole && conversations.length > 0) {
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       try {
         // Get current user
@@ -124,7 +131,7 @@ const You = () => {
     };
 
     fetchData();
-  }, [navigate, toast]);
+  }, [navigate, toast, aiRole, conversations.length, setAiRole, setConversations]);
 
   const handleChatClick = () => {
     if (aiRole) {
@@ -254,7 +261,7 @@ const You = () => {
                       <div className={`flex-1 ${isUserInitiated ? '' : ''}`}>
                         <div
                           // 调整气泡框的背景色和透明度
-                          className="bg-white/25 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
+                          className="bg-white/32 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
                         >
                           {/* Display AI-generated title */}
                           <h3 className="text-base font-semibold text-gray-900 mb-2">
