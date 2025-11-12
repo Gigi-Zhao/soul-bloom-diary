@@ -130,8 +130,16 @@ ${conversationContext}
         aiRes = await makeRequest(fallbackEndpoint);
       }
 
-      if (!aiRes.ok || !aiRes.body) {
-        console.error('Failed to generate title');
+      if (!aiRes.ok) {
+        // 读取错误响应
+        const errorText = await aiRes.text();
+        console.error('Failed to generate title, status:', aiRes.status, 'error:', errorText);
+        // 静默失败，不显示错误给用户（标题生成是后台操作）
+        return;
+      }
+
+      if (!aiRes.body) {
+        console.error('No response body from title generation API');
         return;
       }
 
@@ -163,6 +171,20 @@ ${conversationContext}
         }
       }
 
+      // 检查响应是否是错误（JSON 格式）
+      const trimmedBuffer = titleBuffer.trim();
+      if (trimmedBuffer.startsWith('{')) {
+        try {
+          const jsonResponse = JSON.parse(trimmedBuffer);
+          if (jsonResponse.error) {
+            console.error('Title generation API returned error:', jsonResponse.error);
+            return;
+          }
+        } catch (e) {
+          // 不是 JSON，继续处理
+        }
+      }
+
       // Clean up the title (remove quotes, trim, limit length)
       const generatedTitle = titleBuffer
         .trim()
@@ -170,7 +192,16 @@ ${conversationContext}
         .substring(0, 30);
 
       if (!generatedTitle) {
-        console.log('Empty title generated');
+        console.log('Empty title generated, keeping default title');
+        return;
+      }
+
+      // 额外验证：确保标题不包含错误关键词
+      if (generatedTitle.toLowerCase().includes('error') || 
+          generatedTitle.toLowerCase().includes('upstream') ||
+          generatedTitle.includes('{') || 
+          generatedTitle.includes('}')) {
+        console.error('Invalid title content detected (contains error indicators):', generatedTitle);
         return;
       }
 
@@ -187,7 +218,12 @@ ${conversationContext}
         hasGeneratedTitleRef.current = true;
       }
     } catch (error) {
+      // 捕获所有错误但不显示给用户（标题生成失败不影响主功能）
       console.error('Error generating conversation title:', error);
+      // 如果是网络错误或超时，静默失败
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Title generation timeout, keeping default title');
+      }
     }
   }, [conversationId, aiRole]);
 
@@ -259,29 +295,7 @@ ${conversationContext}
     initializeChat();
   }, [roleId, searchParams, navigate, toast]);
 
-  // Handle browser close/refresh to generate title
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Only generate title if there were new messages in this session
-      if (conversationId && !hasGeneratedTitleRef.current && hasNewMessagesRef.current) {
-        // Send beacon for async operation that survives page unload
-        const generateTitleSync = async () => {
-          try {
-            await generateConversationTitle();
-          } catch (error) {
-            console.error('Error generating title on unload:', error);
-          }
-        };
-        generateTitleSync();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [conversationId, generateConversationTitle]);
+  // 移除 beforeunload 事件处理：标题现在在 AI 回复后自动生成，无需在页面卸载时处理
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
@@ -345,11 +359,16 @@ ${conversationContext}
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleBackClick = async () => {
-    // Generate title before navigating away (only if new messages were sent)
+  const handleBackClick = () => {
+    // 在后台异步生成标题（不等待完成，不阻塞导航）
     if (conversationId && !hasGeneratedTitleRef.current && hasNewMessagesRef.current) {
-      await generateConversationTitle();
+      // 使用 Promise 在后台执行，即使导航后也能完成
+      generateConversationTitle().catch(err => {
+        // 静默处理错误，不影响用户体验
+        console.error('Background title generation failed:', err);
+      });
     }
+    // 立即导航，不等待标题生成完成
     navigate("/you");
   };
 
@@ -543,6 +562,8 @@ ${conversationContext}
             currentStreamingIdRef.current = null;
             streamingMessageRef.current = "";
             scrollToBottom();
+            
+            // 不在这里生成标题，改为用户点击返回时生成
           }
         };
 
