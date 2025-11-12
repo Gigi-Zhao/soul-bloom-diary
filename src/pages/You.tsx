@@ -7,7 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useCachedState } from "@/hooks/use-cached-state";
 
 interface AIRole {
   id: string;
@@ -31,12 +30,12 @@ interface ConversationSummary {
 const You = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [aiRole, setAiRole] = useCachedState<AIRole | null>('you-ai-role', null);
-  const [conversations, setConversations] = useCachedState<ConversationSummary[]>('you-conversations', []);
+  const [aiRole, setAiRole] = useState<AIRole | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Skip fetching if we already have cached data
+    // Skip fetching if we already have data
     if (aiRole && conversations.length > 0) {
       setLoading(false);
       return;
@@ -131,7 +130,7 @@ const You = () => {
     };
 
     fetchData();
-  }, [navigate, toast, aiRole, conversations.length, setAiRole, setConversations]);
+  }, [navigate, toast, aiRole, conversations.length]);
 
   const handleChatClick = () => {
     if (aiRole) {

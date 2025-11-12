@@ -1,7 +1,5 @@
-import React, { useRef, ReactNode, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useRef, ReactNode } from 'react';
 import { CacheContext } from './cache-context';
-import { usePageCache } from '@/hooks/use-page-cache';
 
 export const CacheProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const cacheRef = useRef(new Map<string, { component: ReactNode; scrollPosition: number }>());
@@ -29,69 +27,13 @@ export const CacheProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
+// KeepAlive 现在在 App.tsx 中实现，这里保留接口以保持兼容性
 interface KeepAliveProps {
   children: ReactNode;
   cacheKey?: string;
-  exclude?: string[];
 }
 
-export const KeepAlive: React.FC<KeepAliveProps> = ({
-  children,
-  cacheKey,
-  exclude = [],
-}) => {
-  const location = useLocation();
-  const key = cacheKey || location.pathname;
-  const { getCache, setCache } = usePageCache();
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const shouldCache = !exclude.some(pattern => {
-    if (pattern.includes('*')) {
-      const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-      return regex.test(key);
-    }
-    return key === pattern;
-  });
-
-  const cached = getCache(key);
-
-  useEffect(() => {
-    if (!shouldCache) return;
-
-    const container = containerRef.current;
-
-    return () => {
-      if (container) {
-        const scrollTop = container.scrollTop || window.scrollY;
-        if (!getCache(key)) { // Check again before setting cache
-          setCache(key, children, scrollTop);
-        }
-      }
-    };
-  }, [key, children, setCache, shouldCache, getCache]);
-
-  useEffect(() => {
-    if (!shouldCache || !cached) return;
-
-    const restoreScroll = () => {
-      if (containerRef.current) {
-        containerRef.current.scrollTop = cached.scrollPosition;
-      } else {
-        window.scrollTo(0, cached.scrollPosition);
-      }
-    };
-
-    setTimeout(restoreScroll, 0);
-  }, [cached, shouldCache]);
-
-  if (!shouldCache) {
-    return <>{children}</>;
-  }
-
-  return (
-    <div ref={containerRef} style={{ height: '100%', overflow: 'auto' }}>
-      {cached ? cached.component : children}
-    </div>
-  );
+export const KeepAlive: React.FC<KeepAliveProps> = ({ children }) => {
+  return <>{children}</>;
 };
 
