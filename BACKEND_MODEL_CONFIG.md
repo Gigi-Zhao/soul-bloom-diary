@@ -7,24 +7,39 @@
 ## 🔧 如何更换模型
 
 ### 配置文件位置
-`api/model-config.ts`
 
-### 配置内容
+**对话模型**：`api/chat.ts` 
+**图片解析模型**：`api/analyze-character.ts`
 
+### 配置方式
+
+在每个文件的顶部修改对应的常量：
+
+#### 对话模型（api/chat.ts）
 ```typescript
-// 对话模型配置（用于聊天、对话生成等）
-export const DEFAULT_CHAT_MODEL = 'google/gemini-flash-1.5';
+/**
+ * 模型配置
+ * 修改此处的常量来更换使用的模型
+ */
+const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
+```
 
-// 图片解析模型配置（用于角色图片识别）
-export const DEFAULT_VISION_MODEL = 'google/gemini-flash-1.5';
+#### 图片解析模型（api/analyze-character.ts）
+```typescript
+/**
+ * 模型配置
+ * 修改此处的常量来更换使用的图片解析模型
+ */
+const DEFAULT_VISION_MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
 ```
 
 ### 更换步骤
 
-1. 打开 `api/model-config.ts`
-2. 修改 `DEFAULT_CHAT_MODEL` 或 `DEFAULT_VISION_MODEL` 的值
-3. 保存文件
-4. 重新部署应用（如果已部署）
+1. 打开对应的 API 文件（`api/chat.ts` 或 `api/analyze-character.ts`）
+2. 找到文件顶部的 `DEFAULT_CHAT_MODEL` 或 `DEFAULT_VISION_MODEL` 常量
+3. 修改常量的值为你想使用的模型
+4. 保存文件
+5. 提交并推送到 GitHub（会自动触发 Vercel 重新部署）
 
 ## 🤖 可用的免费模型
 
@@ -45,13 +60,13 @@ export const DEFAULT_VISION_MODEL = 'google/gemini-flash-1.5';
 
 ## 📍 使用的地方
 
-### 对话模型 (`DEFAULT_CHAT_MODEL`)
-- `api/chat.ts` - AI 角色对话
+### 对话模型 (在 `api/chat.ts` 中配置)
+- AI 角色对话
 - 标题生成
 - 所有文本生成场景
 
-### 图片解析模型 (`DEFAULT_VISION_MODEL`)
-- `api/analyze-character.ts` - 角色图片识别
+### 图片解析模型 (在 `api/analyze-character.ts` 中配置)
+- 角色图片识别
 - 头像分析
 
 ## ⚠️ 注意事项

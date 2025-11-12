@@ -1,4 +1,8 @@
-import { getVisionModelForRequest } from "./model-config";
+/**
+ * 模型配置
+ * 修改此处的常量来更换使用的图片解析模型
+ */
+const DEFAULT_VISION_MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
 
 interface VercelRequestLike {
     method?: string;
@@ -50,7 +54,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         }
 
         // 使用配置的视觉模型
-        const visionModel = getVisionModelForRequest();
+        const visionModel = DEFAULT_VISION_MODEL;
 
         // Use vision model to analyze the character
         step = "call-openrouter";

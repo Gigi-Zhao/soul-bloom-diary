@@ -1,4 +1,8 @@
-import { getChatModelForRequest } from "./model-config";
+/**
+ * 模型配置
+ * 修改此处的常量来更换使用的模型
+ */
+const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
 
 interface VercelRequestLike {
     method?: string;
@@ -48,7 +52,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         }
 
         // 使用配置的模型或请求指定的模型
-        const usedModel = getChatModelForRequest(model);
+        const usedModel = (model && model.trim()) ? model : DEFAULT_CHAT_MODEL;
 
         // Start Server-Sent Events streaming to client
         res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
