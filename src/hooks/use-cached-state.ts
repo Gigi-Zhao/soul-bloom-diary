@@ -1,32 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
-// Hook to manage cached data for specific pages
+// In-memory cache store (survives across component remounts within same session)
+const memoryCache = new Map<string, unknown>();
+
+// Hook to manage cached data in memory (no storage quota issues)
 export const useCachedState = <T,>(key: string, initialValue: T) => {
-  const storageKey = `page-cache-${key}`;
+  const isFirstRender = useRef(true);
   
-  // Try to get cached value from sessionStorage
-  const getCachedValue = (): T => {
-    try {
-      const cached = sessionStorage.getItem(storageKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch (error) {
-      console.error('Error reading from cache:', error);
+  // Get cached value from memory on first render
+  const getInitialValue = (): T => {
+    if (memoryCache.has(key)) {
+      const cached = memoryCache.get(key) as T;
+      console.log(`[useCachedState] ${key} - loaded from memory cache:`, Array.isArray(cached) ? `${cached.length} items` : typeof cached);
+      return cached;
     }
+    console.log(`[useCachedState] ${key} - no cache, using initial value`);
     return initialValue;
   };
 
-  const [value, setValue] = useState<T>(getCachedValue);
+  const [value, setValue] = useState<T>(() => getInitialValue());
 
-  // Save to sessionStorage whenever value changes
+  // Save to memory cache whenever value changes
   useEffect(() => {
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(value));
-    } catch (error) {
-      console.error('Error saving to cache:', error);
+    // Skip saving on first render if value is initial value
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      // Only save if it's not the initial value (means we loaded from cache or got new data)
+      if (value !== initialValue) {
+        memoryCache.set(key, value);
+      }
+      return;
     }
-  }, [value, storageKey]);
+
+    memoryCache.set(key, value);
+    console.log(`[useCachedState] ${key} - saved to memory cache:`, Array.isArray(value) ? `${value.length} items` : typeof value);
+  }, [value, key, initialValue]);
 
   return [value, setValue] as const;
 };
