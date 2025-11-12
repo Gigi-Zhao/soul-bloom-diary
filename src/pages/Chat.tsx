@@ -107,7 +107,7 @@ ${conversationContext}
 
       const makeRequest = async (url: string) => {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         try {
           const res = await fetch(url, {
             method: 'POST',
@@ -118,6 +118,7 @@ ${conversationContext}
             }),
             signal: controller.signal,
             cache: 'no-store',
+            keepalive: true,
           });
           return res;
         } finally {
@@ -132,14 +133,15 @@ ${conversationContext}
 
       if (!aiRes.ok) {
         // 读取错误响应
-        const errorText = await aiRes.text();
+        const errorText = await aiRes.text().catch(() => 'Unknown error');
         console.error('Failed to generate title, status:', aiRes.status, 'error:', errorText);
-        // 静默失败，不显示错误给用户（标题生成是后台操作）
+        hasGeneratedTitleRef.current = false;
         return;
       }
 
       if (!aiRes.body) {
         console.error('No response body from title generation API');
+        hasGeneratedTitleRef.current = false;
         return;
       }
 
@@ -161,27 +163,26 @@ ${conversationContext}
           const line = rawLine.replace(/\r$/, '');
           if (!line) continue;
           if (line.startsWith('data:')) {
-            const dataStr = line.slice(5);
-            if (dataStr.trim() === '[DONE]') {
+            const dataStr = line.slice(5).trim(); // trim 去掉 "data:" 后的空格
+            if (dataStr === '[DONE]') {
               break;
-            } else {
+            } else if (dataStr && !dataStr.startsWith('{')) {
+              // 只拼接非 JSON 的纯文本内容
               titleBuffer += dataStr;
+            } else if (dataStr.startsWith('{')) {
+              // 检查是否是错误 JSON
+              try {
+                const jsonResponse = JSON.parse(dataStr);
+                if (jsonResponse.error) {
+                  console.error('Title generation API returned error:', jsonResponse.error);
+                  hasGeneratedTitleRef.current = false;
+                  return;
+                }
+              } catch (e) {
+                // JSON 解析失败，忽略
+              }
             }
           }
-        }
-      }
-
-      // 检查响应是否是错误（JSON 格式）
-      const trimmedBuffer = titleBuffer.trim();
-      if (trimmedBuffer.startsWith('{')) {
-        try {
-          const jsonResponse = JSON.parse(trimmedBuffer);
-          if (jsonResponse.error) {
-            console.error('Title generation API returned error:', jsonResponse.error);
-            return;
-          }
-        } catch (e) {
-          // 不是 JSON，继续处理
         }
       }
 
@@ -193,6 +194,7 @@ ${conversationContext}
 
       if (!generatedTitle) {
         console.log('Empty title generated, keeping default title');
+        hasGeneratedTitleRef.current = false;
         return;
       }
 
@@ -202,6 +204,7 @@ ${conversationContext}
           generatedTitle.includes('{') || 
           generatedTitle.includes('}')) {
         console.error('Invalid title content detected (contains error indicators):', generatedTitle);
+        hasGeneratedTitleRef.current = false;
         return;
       }
 
@@ -462,15 +465,20 @@ ${conversationContext}
       }
 
       // Fetch conversation history for context
-      // 限制了最多20条消息
+      // 获取最新的20条消息（先按降序取20条，再反转顺序）
       const { data: historyData } = await supabase
         .from('messages')
-        .select('sender_role, content')
+        .select('id, sender_role, content, created_at')
         .eq('conversation_id', activeConversationId)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })  // 先降序获取最新的
         .limit(20);
 
-      const conversationHistory = historyData || [];
+      // 反转顺序，使最旧的在前，最新的在后
+      const conversationHistory = (historyData || []).reverse();
+
+      // 调试：打印数据库原始数据
+      console.log('🗄️ Raw DB data (latest 20):', conversationHistory);
+      console.log('🔢 DB message count:', conversationHistory.length);
 
       // Prepare messages for AI
       const aiMessages = [
@@ -480,6 +488,11 @@ ${conversationContext}
           content: msg.content
         }))
       ];
+
+      // 调试：打印传递给 AI 的消息
+      console.log('📤 Sending to AI:', JSON.stringify(aiMessages, null, 2));
+      console.log('📊 Message count:', aiMessages.length);
+      console.log('📝 Last 5 messages:', aiMessages.slice(-5));
 
       // Call OpenRouter API (SSE streaming)
       try {
