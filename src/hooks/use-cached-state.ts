@@ -1,32 +1,58 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
-// Hook to manage cached data for specific pages
+// 内存缓存存储
+const memoryCache = new Map<string, unknown>();
+
+// Hook to manage cached data for specific pages using memory cache
+// 避免 sessionStorage 容量超限问题
 export const useCachedState = <T,>(key: string, initialValue: T) => {
-  const storageKey = `page-cache-${key}`;
+  const cacheKey = `page-cache-${key}`;
   
-  // Try to get cached value from sessionStorage
+  // 从内存缓存获取值
   const getCachedValue = (): T => {
     try {
-      const cached = sessionStorage.getItem(storageKey);
-      if (cached) {
-        return JSON.parse(cached);
+      if (memoryCache.has(cacheKey)) {
+        return memoryCache.get(cacheKey) as T;
       }
     } catch (error) {
-      console.error('Error reading from cache:', error);
+      console.error('Error reading from memory cache:', error);
     }
     return initialValue;
   };
 
   const [value, setValue] = useState<T>(getCachedValue);
+  const isInitialMount = useRef(true);
 
-  // Save to sessionStorage whenever value changes
+  // 保存到内存缓存
   useEffect(() => {
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(value));
-    } catch (error) {
-      console.error('Error saving to cache:', error);
+    // 跳过初始挂载，避免不必要的缓存写入
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
     }
-  }, [value, storageKey]);
+
+    try {
+      memoryCache.set(cacheKey, value);
+    } catch (error) {
+      console.error('Error saving to memory cache:', error);
+    }
+  }, [value, cacheKey]);
 
   return [value, setValue] as const;
+};
+
+// 清除所有内存缓存的工具函数
+export const clearAllMemoryCache = () => {
+  memoryCache.clear();
+};
+
+// 清除特定键的内存缓存
+export const clearMemoryCache = (key: string) => {
+  const cacheKey = `page-cache-${key}`;
+  memoryCache.delete(cacheKey);
+};
+
+// 获取缓存大小（用于调试）
+export const getMemoryCacheSize = () => {
+  return memoryCache.size;
 };
