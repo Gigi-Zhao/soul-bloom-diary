@@ -51,6 +51,7 @@ const Chat = () => {
   const currentStreamingIdRef = useRef<string | null>(null);
   const conversationCreatedRef = useRef(false);
   const hasGeneratedTitleRef = useRef(false);
+  const hasNewMessagesRef = useRef(false); // 追踪是否有新消息发送
 
   // Function to update streaming message in UI
   const updateStreamingMessage = (content: string) => {
@@ -261,7 +262,8 @@ ${conversationContext}
   // Handle browser close/refresh to generate title
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (conversationId && !hasGeneratedTitleRef.current) {
+      // Only generate title if there were new messages in this session
+      if (conversationId && !hasGeneratedTitleRef.current && hasNewMessagesRef.current) {
         // Send beacon for async operation that survives page unload
         const generateTitleSync = async () => {
           try {
@@ -344,8 +346,8 @@ ${conversationContext}
   };
 
   const handleBackClick = async () => {
-    // Generate title before navigating away
-    if (conversationId && !hasGeneratedTitleRef.current) {
+    // Generate title before navigating away (only if new messages were sent)
+    if (conversationId && !hasGeneratedTitleRef.current && hasNewMessagesRef.current) {
       await generateConversationTitle();
     }
     navigate("/you");
@@ -435,6 +437,9 @@ ${conversationContext}
         messageIdsRef.current.add(userMsgData.id);
         setMessages((prev) => [...prev, userMsgData]);
         scrollToBottom();
+        
+        // Mark that new messages have been sent in this session
+        hasNewMessagesRef.current = true;
       }
 
       // Fetch conversation history for context
