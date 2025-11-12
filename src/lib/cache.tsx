@@ -33,21 +33,19 @@ interface KeepAliveProps {
   children: ReactNode;
   cacheKey?: string;
   exclude?: string[];
-  alive?: boolean;
 }
 
 export const KeepAlive: React.FC<KeepAliveProps> = ({
   children,
   cacheKey,
   exclude = [],
-  alive = true,
 }) => {
   const location = useLocation();
   const key = cacheKey || location.pathname;
   const { getCache, setCache } = usePageCache();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const shouldCache = alive && !exclude.some(pattern => {
+  const shouldCache = !exclude.some(pattern => {
     if (pattern.includes('*')) {
       const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
       return regex.test(key);
@@ -65,7 +63,7 @@ export const KeepAlive: React.FC<KeepAliveProps> = ({
     return () => {
       if (container) {
         const scrollTop = container.scrollTop || window.scrollY;
-        if (!getCache(key)) { 
+        if (!getCache(key)) { // Check again before setting cache
           setCache(key, children, scrollTop);
         }
       }

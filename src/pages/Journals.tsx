@@ -7,7 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from "date-fns";
 import { MoodSelector } from "@/components/journals/MoodSelector";
 import { DiaryEntryForm } from "@/components/journals/DiaryEntryForm";
-import { useCachedState } from "@/hooks/use-cached-state";
 
 /**
  * Mood emoji mapping for different moods
@@ -42,17 +41,10 @@ const Journals = () => {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [isCalendarCollapsed, setIsCalendarCollapsed] = useState(false);
   
-  // State for journal entries with caching
-  const [entries, setEntries] = useCachedState<JournalEntry[]>('journals-entries', []);
+  // State for journal entries
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [entriesByDate, setEntriesByDate] = useState<Map<string, JournalEntry[]>>(new Map());
   const [loading, setLoading] = useState(true);
-
-  // Update loading state when cached data changes
-  useEffect(() => {
-    if (entries.length > 0) {
-      setLoading(false);
-    }
-  }, [entries.length]);
 
   // State for entry creation flow
   const [showMoodSelector, setShowMoodSelector] = useState(false);
@@ -65,34 +57,14 @@ const Journals = () => {
    */
   useEffect(() => {
     fetchEntries();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth]);
 
   const fetchEntries = async () => {
     try {
-      // If we have cached entries, rebuild the map and show them immediately
-      const hasCachedData = entries.length > 0;
-      if (hasCachedData) {
-        setLoading(false);
-        const grouped = new Map<string, JournalEntry[]>();
-        entries.forEach((entry: JournalEntry) => {
-          const dateKey = entry.date || format(new Date(entry.created_at), 'yyyy-MM-dd');
-          const normalizedKey = dateKey.replace(/\./g, '-');
-          if (!grouped.has(normalizedKey)) {
-            grouped.set(normalizedKey, []);
-          }
-          grouped.get(normalizedKey)?.push(entry);
-        });
-        setEntriesByDate(grouped);
-      }
-      
-      // Always fetch fresh data in the background
+      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+      if (!user) return;
 
       // Get start and end of current month
       const monthStart = format(startOfMonth(currentMonth), 'yyyy.MM.dd');
@@ -112,13 +84,13 @@ const Journals = () => {
 
         // Group entries by date
         const grouped = new Map<string, JournalEntry[]>();
-        data.forEach((entry: JournalEntry) => {
+        data.forEach((entry: any) => {
           const dateKey = entry.date || format(new Date(entry.created_at), 'yyyy-MM-dd');
           const normalizedKey = dateKey.replace(/\./g, '-');
           if (!grouped.has(normalizedKey)) {
             grouped.set(normalizedKey, []);
           }
-          grouped.get(normalizedKey)?.push(entry);
+          grouped.get(normalizedKey)?.push(entry as JournalEntry);
         });
         setEntriesByDate(grouped);
       }

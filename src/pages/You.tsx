@@ -35,16 +35,14 @@ const You = () => {
   const [conversations, setConversations] = useCachedState<ConversationSummary[]>('you-conversations', []);
   const [loading, setLoading] = useState(true);
 
-  // Update loading state when cached data changes
   useEffect(() => {
+    // Skip fetching if we already have cached data
     if (aiRole && conversations.length > 0) {
       setLoading(false);
+      return;
     }
-  }, [aiRole, conversations.length]);
 
-  useEffect(() => {
     const fetchData = async () => {
-      // Always fetch fresh data
       try {
         // Get current user
         const { data: { user } } = await supabase.auth.getUser();
@@ -133,8 +131,7 @@ const You = () => {
     };
 
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - only fetch once on mount
+  }, [navigate, toast, aiRole, conversations.length, setAiRole, setConversations]);
 
   const handleChatClick = () => {
     if (aiRole) {
@@ -264,7 +261,7 @@ const You = () => {
                       <div className={`flex-1 ${isUserInitiated ? '' : ''}`}>
                         <div
                           // 调整气泡框的背景色和透明度
-                          className="bg-white/50 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
+                          className="bg-white/32 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
                         >
                           {/* Display AI-generated title */}
                           <h3 className="text-base font-semibold text-gray-900 mb-2">

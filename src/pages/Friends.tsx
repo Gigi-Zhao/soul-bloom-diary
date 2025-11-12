@@ -7,7 +7,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, MessageCircle, Sparkles, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useCachedState } from "@/hooks/use-cached-state";
 
 interface AIRole {
   id: string;
@@ -23,19 +22,11 @@ interface AIRole {
 const Friends = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [aiRoles, setAiRoles] = useCachedState<AIRole[]>('friends-ai-roles', []);
+  const [aiRoles, setAiRoles] = useState<AIRole[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Update loading state when aiRoles changes
-  useEffect(() => {
-    if (aiRoles.length > 0) {
-      setLoading(false);
-    }
-  }, [aiRoles.length]);
 
   useEffect(() => {
     const fetchAIRoles = async () => {
-      // Always fetch fresh data
       const { data, error } = await supabase
         .from('ai_roles')
         .select('id, name, description, avatar_url')
@@ -55,8 +46,7 @@ const Friends = () => {
     };
 
     fetchAIRoles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - only fetch once on mount
+  }, [toast]);
 
   return (
     <div className="min-h-screen pb-24 pt-8 px-4 bg-gradient-to-b from-background to-muted/30">
