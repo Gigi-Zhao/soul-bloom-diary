@@ -154,7 +154,7 @@ const RoleSetup = () => {
         tags: tags,
         mbti_type: mbtiType || null,
         catchphrase: catchphrase.trim(),
-        model: 'minimax/minimax-m2:free',
+        model: 'meituan/longcat-flash-chat:free',
       });
 
       // Insert into database
@@ -168,7 +168,7 @@ const RoleSetup = () => {
           mbti_type: mbtiType || null,
           catchphrase: catchphrase.trim(),
           prompt: prompt,
-          model: 'minimax/minimax-m2:free',
+          model: 'meituan/longcat-flash-chat:free',
         })
         .select();
 
