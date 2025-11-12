@@ -1,3 +1,5 @@
+import { getVisionModelForRequest } from "./model-config";
+
 interface VercelRequestLike {
     method?: string;
     headers: Record<string, string | undefined>;
@@ -47,9 +49,12 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(400).json({ error: "Invalid request: image required" });
         }
 
-        // Use Mistral Small vision model to analyze the character
+        // 使用配置的视觉模型
+        const visionModel = getVisionModelForRequest();
+
+        // Use vision model to analyze the character
         step = "call-openrouter";
-        console.log("[analyze-character] step", step, { hasImage: true });
+        console.log("[analyze-character] step", step, { hasImage: true, model: visionModel });
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -59,7 +64,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                 "X-Title": "Soul Bloom Diary",
             },
             body: JSON.stringify({
-                model: "mistralai/mistral-small-3.2-24b-instruct:free",
+                model: visionModel,
                 messages: [ 
                     {
                         role: "user",

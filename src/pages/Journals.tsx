@@ -2,7 +2,7 @@ import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from "date-fns";
 import { MoodSelector } from "@/components/journals/MoodSelector";
@@ -55,11 +55,7 @@ const Journals = () => {
   /**
    * Fetch journal entries from Supabase
    */
-  useEffect(() => {
-    fetchEntries();
-  }, [currentMonth]);
-
-  const fetchEntries = async () => {
+  const fetchEntries = useCallback(async () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -84,7 +80,7 @@ const Journals = () => {
 
         // Group entries by date
         const grouped = new Map<string, JournalEntry[]>();
-        data.forEach((entry: any) => {
+        data.forEach((entry) => {
           const dateKey = entry.date || format(new Date(entry.created_at), 'yyyy-MM-dd');
           const normalizedKey = dateKey.replace(/\./g, '-');
           if (!grouped.has(normalizedKey)) {
@@ -99,7 +95,11 @@ const Journals = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentMonth]);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
 
   /**
    * Get all days in the current month up to today only

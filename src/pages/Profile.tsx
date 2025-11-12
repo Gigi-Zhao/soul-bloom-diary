@@ -38,8 +38,9 @@ const Profile = () => {
       
       toast.success("Logged out successfully. See you soon! 💗");
       navigate("/auth");
-    } catch (error: any) {
-      toast.error(error.message || "Logout failed");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Logout failed";
+      toast.error(message);
     }
   };
 

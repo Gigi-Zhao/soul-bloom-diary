@@ -1,3 +1,5 @@
+import { getChatModelForRequest } from "./model-config";
+
 interface VercelRequestLike {
     method?: string;
     headers: Record<string, string | undefined>;
@@ -45,7 +47,8 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(400).json({ error: "Invalid request: messages required" });
         }
 
-        const usedModel = typeof model === "string" && model.trim() ? model : "minimax/minimax-m2:free";
+        // 使用配置的模型或请求指定的模型
+        const usedModel = getChatModelForRequest(model);
 
         // Start Server-Sent Events streaming to client
         res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
