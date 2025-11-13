@@ -33,6 +33,80 @@ const You = () => {
   const [aiRole, setAiRole] = useState<AIRole | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bubbleMessage, setBubbleMessage] = useState<string>("");
+  const [loadingBubble, setLoadingBubble] = useState(false);
+
+  // 生成气泡消息
+  const generateBubbleMessage = async (aiRoleName: string) => {
+    try {
+      setLoadingBubble(true);
+      console.log('[Bubble] 开始生成气泡消息，角色：', aiRoleName);
+      // 获取当前用户
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('[Bubble] 获取用户失败:', userError);
+      }
+      if (!user) {
+        console.warn('[Bubble] 未获取到用户，终止气泡生成');
+        return;
+      }
+      // 获取最新的日记
+      const { data: latestJournal, error: journalError } = await supabase
+        .from('journal_entries')
+        .select('content, mood, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (journalError) {
+        console.error('[Bubble] 获取最新日记失败:', journalError);
+      }
+      console.log('[Bubble] 最新日记：', latestJournal);
+      if (latestJournal) {
+        // 调用API生成气泡消息
+        try {
+          console.log('[Bubble] 调用API参数:', {
+            journalContent: latestJournal.content,
+            mood: latestJournal.mood,
+            aiRoleName: aiRoleName,
+          });
+          const response = await fetch('/api/generate-bubble-message', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              journalContent: latestJournal.content,
+              mood: latestJournal.mood,
+              aiRoleName: aiRoleName,
+            }),
+          });
+          console.log('[Bubble] API响应状态:', response.status);
+          const text = await response.clone().text();
+          console.log('[Bubble] API响应原文:', text);
+          if (response.ok) {
+            const data = await response.json();
+            setBubbleMessage(data.message);
+            console.log('[Bubble] 生成气泡消息:', data.message);
+          } else {
+            setBubbleMessage(`你对${aiRoleName}的热情，真让人期待啊......`);
+            console.error('[Bubble] API调用失败:', response.status, text);
+          }
+        } catch (apiError) {
+          setBubbleMessage(`你对${aiRoleName}的热情，真让人期待啊......`);
+          console.error('[Bubble] API请求异常:', apiError);
+        }
+      } else {
+        setBubbleMessage(`嘿！有什么想和我分享的吗？`);
+        console.warn('[Bubble] 没有找到日记，使用默认气泡');
+      }
+    } catch (error) {
+      console.error('[Bubble] 生成气泡消息异常:', error);
+      setBubbleMessage(`你对${aiRoleName}的热情，真让人期待啊......`);
+    } finally {
+      setLoadingBubble(false);
+    }
+  };
 
   useEffect(() => {
     // Skip fetching if we already have data
@@ -69,6 +143,8 @@ const You = () => {
           
           if (firstRole) {
             setAiRole(firstRole);
+            // 生成气泡消息
+            await generateBubbleMessage(firstRole.name);
           } else {
             toast({
               title: "未找到角色",
@@ -80,6 +156,8 @@ const You = () => {
           }
         } else {
           setAiRole(roleData);
+          // 生成气泡消息
+          await generateBubbleMessage(roleData.name);
         }
 
         // Fetch conversation summaries
@@ -183,7 +261,11 @@ const You = () => {
             {/* Main chat bubble */}
             <div className="bg-white/50 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
               <p className="text-sm text-gray-800 leading-relaxed">
-                {aiRole.catchphrase || `你对${aiRole.name}的热情，真让人期待啊......`}
+                {loadingBubble ? (
+                  <span className="text-gray-500">...</span>
+                ) : (
+                  bubbleMessage || aiRole.catchphrase || `你对${aiRole.name}的热情，真让人期待啊......`
+                )}
               </p>
             </div>
             {/* Tail circles - bottom left corner at 45° angle */}
