@@ -176,6 +176,23 @@ const You = () => {
         
         {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#f5e6e8]/30 to-[#f5e6e8]" />
+        
+        {/* Floating Chat Bubble */}
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 w-[85%] max-w-md">
+          <div className="relative">
+            {/* Main chat bubble */}
+            <div className="bg-white/50 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
+              <p className="text-sm text-gray-800 leading-relaxed">
+                {aiRole.catchphrase || `你对${aiRole.name}的热情，真让人期待啊......`}
+              </p>
+            </div>
+            {/* Tail circles - bottom left corner at 45° angle */}
+            <div className="absolute bottom-0 left-0">
+              <div className="w-3 h-3 bg-white/50 backdrop-blur-sm rounded-full absolute -bottom-2 left-3"></div>
+              <div className="w-2 h-2 bg-white/50 backdrop-blur-sm rounded-full absolute -bottom-4 left-1"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Character Info Section */}
