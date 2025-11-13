@@ -217,6 +217,74 @@ const You = () => {
     }
   };
 
+  // When user clicks the floating bubble, create a conversation with
+  // an initial AI message (the bubbleMessage) and navigate into it so
+  // the AI message appears as sent and waits for the user's reply.
+  const handleBubbleClick = async () => {
+    if (!aiRole) return;
+    try {
+      setLoading(true);
+      // Ensure bubbleMessage is available; fall back to catchphrase
+      const initialContent = bubbleMessage || aiRole.catchphrase || `嘿！有什么想和我分享的吗？`;
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+
+      // Create a new conversation record
+      const timestamp = new Date().toLocaleString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      const { data: newConv, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          user_id: user.id,
+          ai_role_id: aiRole.id,
+          title: `${timestamp} 对话`,
+        })
+        .select()
+        .single();
+
+      if (convError || !newConv) {
+        console.error('Error creating conversation for bubble click:', convError);
+        toast({ title: '创建对话失败', description: convError?.message || '未知错误', variant: 'destructive' });
+        return;
+      }
+
+      // Insert AI initial message
+      const { data: aiMsg, error: aiMsgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: newConv.id,
+          sender_role: 'ai',
+          content: initialContent,
+        })
+        .select()
+        .single();
+
+      if (aiMsgError) {
+        console.error('Error inserting AI initial message:', aiMsgError);
+        toast({ title: '发送消息失败', description: aiMsgError.message, variant: 'destructive' });
+        // Still navigate so user can start a conversation
+      }
+
+      // Navigate into the chat with the conversation id so Chat.tsx loads messages
+      navigate(`/chat/${aiRole.id}?conversation=${newConv.id}`);
+    } catch (error) {
+      console.error('handleBubbleClick error:', error);
+      toast({ title: '操作失败', description: error instanceof Error ? error.message : '未知错误', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleConversationClick = (conversationId: string) => {
     if (aiRole) {
       // Continue an existing conversation
@@ -258,8 +326,8 @@ const You = () => {
         {/* Floating Chat Bubble */}
         <div className="absolute top-16 left-1/2 -translate-x-1/2 w-[85%] max-w-md">
           <div className="relative">
-            {/* Main chat bubble */}
-            <div className="bg-white/50 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg">
+            {/* Main chat bubble (clickable) */}
+            <div onClick={handleBubbleClick} role="button" tabIndex={0} className="bg-white/50 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg cursor-pointer">
               <p className="text-sm text-gray-800 leading-relaxed">
                 {loadingBubble ? (
                   <span className="text-gray-500">...</span>
