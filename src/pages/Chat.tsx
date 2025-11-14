@@ -141,10 +141,12 @@ ${conversationContext}
             body: JSON.stringify({
               model: aiRole.model,
               messages: [{ role: 'user', content: titlePrompt }],
+              temperature: 0.7,
+              max_tokens: 50, // 标题很短，限制token数量
+              // 不使用流式响应
             }),
             signal: controller.signal,
             cache: 'no-store',
-            keepalive: true,
           });
           console.log('[Title] 📨 收到响应，状态码:', res.status);
           return res;
@@ -170,72 +172,18 @@ ${conversationContext}
         return;
       }
 
-      if (!aiRes.body) {
-        console.error('[Title] ❌ 响应体为空');
-        hasGeneratedTitleRef.current = false;
-        return;
-      }
+      console.log('[Title] 📖 开始解析JSON响应...');
+      const data = await aiRes.json() as {
+        choices?: Array<{
+          message?: {
+            content?: string;
+          };
+        }>;
+      };
 
-      console.log('[Title] 📖 开始读取流式响应...');
-      // Read streaming response
-      const reader = aiRes.body.getReader();
-      const decoder = new TextDecoder();
-      let titleBuffer = '';
-      let buffer = '';
-      let chunkCount = 0;
+      console.log('[Title] 📋 API返回数据:', data);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          console.log('[Title] ✅ 流读取完成');
-          break;
-        }
-        chunkCount++;
-        const chunk = decoder.decode(value, { stream: true });
-        console.log(`[Title] 📦 Chunk ${chunkCount}:`, chunk);
-        buffer += chunk;
-
-        let idx: number;
-        while ((idx = buffer.indexOf('\n')) !== -1) {
-          const rawLine = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 1);
-          const line = rawLine.replace(/\r$/, '');
-          if (!line) continue;
-          if (line.startsWith('data:')) {
-            const dataStr = line.slice(5).trim(); // trim 去掉 "data:" 后的空格
-            console.log('[Title] 📄 Data line:', dataStr);
-            if (dataStr === '[DONE]') {
-              console.log('[Title] 🏁 收到 [DONE] 标记');
-              break;
-            } else if (dataStr && !dataStr.startsWith('{')) {
-              // 只拼接非 JSON 的纯文本内容
-              titleBuffer += dataStr;
-              console.log('[Title] ➕ 累加文本，当前buffer:', titleBuffer);
-            } else if (dataStr.startsWith('{')) {
-              // 检查是否是错误 JSON
-              try {
-                const jsonResponse = JSON.parse(dataStr);
-                console.log('[Title] 📋 解析JSON:', jsonResponse);
-                if (jsonResponse.error) {
-                  console.error('[Title] ❌ API返回错误:', jsonResponse.error);
-                  hasGeneratedTitleRef.current = false;
-                  return;
-                }
-              } catch (e) {
-                // JSON 解析失败，忽略
-                console.log('[Title] ⚠️ JSON解析失败，忽略:', dataStr.substring(0, 50));
-              }
-            }
-          }
-        }
-      }
-
-      console.log('[Title] 📊 原始titleBuffer:', titleBuffer);
-      console.log('[Title] 📊 titleBuffer长度:', titleBuffer.length);
-
-      // Clean up the title (remove quotes, trim, limit length)
-      const generatedTitle = titleBuffer
-        .trim()
+      const generatedTitle = data.choices?.[0]?.message?.content?.trim()
         .replace(/^["'「『]|["'」』]$/g, '')
         .substring(0, 30);
 
