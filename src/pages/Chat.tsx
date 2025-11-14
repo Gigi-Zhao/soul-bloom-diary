@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,11 +52,6 @@ const Chat = () => {
   const conversationCreatedRef = useRef(false);
   const hasGeneratedTitleRef = useRef(false);
   const hasNewMessagesRef = useRef(false); // 追踪是否有新消息发送
-  const location = useLocation();
-
-  // If user arrived from bubble click, this holds the initial AI message (not yet persisted)
-  const initialAIMessageRef = useRef<string | null>(null);
-  const initialLocalMessageRef = useRef(false);
 
   // Function to update streaming message in UI
   const updateStreamingMessage = (content: string) => {
@@ -231,7 +226,7 @@ ${conversationContext}
     const initializeChat = async () => {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      if (error) {
+      if (!user) {
         navigate("/auth");
         return;
       }
@@ -318,29 +313,6 @@ ${conversationContext}
       setMessages(messageData);
       messageIdsRef.current = new Set(messageData.map(m => m.id));
       setTimeout(scrollToBottom, 100);
-
-      // 如果数据库没有消息，并且导航 state 带来了初始 AI 消息，先在 UI 本地渲染一条临时 AI 消息
-      try {
-        const navState = (location && (location.state as any)) || {};
-        const initial = navState.initialAIMessage as string | undefined;
-        if (messageData.length === 0 && initial && !initialLocalMessageRef.current) {
-          initialAIMessageRef.current = initial;
-          const tempId = `local-initial-${Date.now()}`;
-          const tempMsg: Message = {
-            id: tempId,
-            conversation_id: conversationId!,
-            sender_role: 'ai',
-            content: initial,
-            created_at: new Date().toISOString(),
-          };
-          initialLocalMessageRef.current = true;
-          setMessages(prev => [...prev, tempMsg]);
-          // Do not add to messageIdsRef - it's not persisted yet
-          setTimeout(scrollToBottom, 100);
-        }
-      } catch (e) {
-        // ignore any nav state parsing errors
-      }
     }
   }, [conversationId, toast]);
 
@@ -450,35 +422,6 @@ ${conversationContext}
         });
         setIsLoading(false);
         return;
-      }
-
-      // If there's a local (not-yet-persisted) AI initial message (from bubble), persist it first
-      if (initialLocalMessageRef.current && initialAIMessageRef.current && activeConversationId) {
-        try {
-          const { data: aiMsgData, error: aiMsgError } = await supabase
-            .from('messages')
-            .insert({
-              conversation_id: activeConversationId,
-              sender_role: 'ai',
-              content: initialAIMessageRef.current,
-            })
-            .select()
-            .single();
-
-          if (aiMsgError) {
-            console.error('Error persisting initial AI message:', aiMsgError);
-            // continue without blocking user send
-          } else if (aiMsgData) {
-            // replace local temp message with persisted one if present
-            messageIdsRef.current.add(aiMsgData.id);
-            setMessages(prev => prev.map(m => m.id.startsWith('local-initial-') ? aiMsgData : m));
-            initialLocalMessageRef.current = false;
-            // clear the stored initial content to avoid double-insert
-            initialAIMessageRef.current = null;
-          }
-        } catch (err) {
-          console.error('Error persisting initial AI message (network):', err);
-        }
       }
 
       // Insert user message
