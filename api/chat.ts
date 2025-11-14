@@ -3,8 +3,8 @@
  * 修改此处的常量来更换使用的模型
  */
 
-// const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
-const DEFAULT_CHAT_MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
+const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
+//const DEFAULT_CHAT_MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
 
 interface VercelRequestLike {
     method?: string;
