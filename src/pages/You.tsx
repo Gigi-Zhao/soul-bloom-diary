@@ -451,15 +451,19 @@ const You = () => {
                           hour12: true
                         }).toUpperCase()}
                       </span>
-                      <Avatar className="w-6 h-6 ml-2">
-                        <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user`} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-xs">
-                          我
-                        </AvatarFallback>
-                      </Avatar>
+                      {/* 只在用户发起时显示用户头像 */}
+                      {isUserInitiated && (
+                        <Avatar className="w-6 h-6 ml-2">
+                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user`} />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-xs">
+                            我
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
                     </div>
 
                     <div className="flex gap-3">
+                      {/* 只在 AI 发起时显示 AI 头像 */}
                       {!isUserInitiated && (
                         <Avatar className="w-10 h-10 flex-shrink-0 mt-1">
                           <AvatarImage src={aiRole.avatar_url} />
