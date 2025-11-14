@@ -301,27 +301,12 @@ const You = () => {
 
       console.log('[Bubble Click] 对话创建成功，ID:', newConv.id);
 
-      // Insert AI initial message (存入数据库)
-      const { data: aiMsg, error: aiMsgError } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: newConv.id,
-          sender_role: 'ai',
-          content: initialContent,
-        })
-        .select()
-        .single();
-
-      if (aiMsgError) {
-        console.error('[Bubble Click] 插入AI消息失败:', aiMsgError);
-        toast({ title: '发送消息失败', description: aiMsgError.message, variant: 'destructive' });
-        // Still navigate so user can start a conversation
-      } else {
-        console.log('[Bubble Click] AI消息已存入数据库，消息ID:', aiMsg?.id);
-      }
-
-      // Navigate into the chat with the conversation id so Chat.tsx loads messages
-      navigate(`/chat/${aiRole.id}?conversation=${newConv.id}`);
+      // 不再立即将 AI 初始消息持久化；只在用户实际回复时再保存。
+      // 将初始内容通过 navigation state 传递给 Chat 页面以便在 UI 中临时展示
+      navigate(
+        `/chat/${aiRole.id}?conversation=${newConv.id}`,
+        { state: { initialAIMessage: initialContent } }
+      );
     } catch (error) {
       console.error('handleBubbleClick error:', error);
       toast({ title: '操作失败', description: error instanceof Error ? error.message : '未知错误', variant: 'destructive' });
