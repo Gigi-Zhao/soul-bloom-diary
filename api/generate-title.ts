@@ -2,7 +2,7 @@
  * 生成对话标题的 API 端点（非流式响应）
  */
 
-const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
+const DEFAULT_TITLE_MODEL = 'meituan/longcat-flash-chat:free';
 
 interface VercelRequestLike {
     method?: string;
