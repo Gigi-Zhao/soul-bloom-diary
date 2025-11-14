@@ -125,8 +125,8 @@ ${conversationContext}
 
       // Call AI API to generate title
       const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
-      const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/chat` : '/api/chat';
-      const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/chat';
+      const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/generate-title` : '/api/generate-title';
+      const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/generate-title';
 
       console.log('[Title] 🌐 使用端点:', primaryEndpoint);
 
@@ -140,10 +140,7 @@ ${conversationContext}
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: aiRole.model,
-              messages: [{ role: 'user', content: titlePrompt }],
-              temperature: 0.7,
-              max_tokens: 50, // 标题很短，限制token数量
-              // 不使用流式响应
+              prompt: titlePrompt,
             }),
             signal: controller.signal,
             cache: 'no-store',
@@ -174,16 +171,12 @@ ${conversationContext}
 
       console.log('[Title] 📖 开始解析JSON响应...');
       const data = await aiRes.json() as {
-        choices?: Array<{
-          message?: {
-            content?: string;
-          };
-        }>;
+        title?: string;
       };
 
       console.log('[Title] 📋 API返回数据:', data);
 
-      const generatedTitle = data.choices?.[0]?.message?.content?.trim()
+      const generatedTitle = data.title?.trim()
         .replace(/^["'「『]|["'」』]$/g, '')
         .substring(0, 30);
 
