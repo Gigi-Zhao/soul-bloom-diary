@@ -69,9 +69,22 @@ const Chat = () => {
 
   // Function to generate conversation title based on last 5 messages
   const generateConversationTitle = useCallback(async () => {
-    if (!conversationId || !aiRole || hasGeneratedTitleRef.current) return;
+    console.log('[Title] 🎯 开始生成对话标题');
+    console.log('[Title] conversationId:', conversationId);
+    console.log('[Title] aiRole:', aiRole?.name);
+    console.log('[Title] hasGeneratedTitleRef.current:', hasGeneratedTitleRef.current);
+    
+    if (!conversationId || !aiRole || hasGeneratedTitleRef.current) {
+      console.log('[Title] ⏭️ 跳过标题生成：', {
+        noConversationId: !conversationId,
+        noAiRole: !aiRole,
+        alreadyGenerated: hasGeneratedTitleRef.current
+      });
+      return;
+    }
 
     try {
+      console.log('[Title] 📥 开始获取最近5条消息...');
       // Fetch last 5 messages
       const { data: recentMessages, error: fetchError } = await supabase
         .from('messages')
@@ -80,13 +93,21 @@ const Chat = () => {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (fetchError || !recentMessages || recentMessages.length === 0) {
-        console.log('No messages to summarize');
+      if (fetchError) {
+        console.error('[Title] ❌ 获取消息失败:', fetchError);
+        return;
+      }
+
+      console.log('[Title] 📊 获取到消息数量:', recentMessages?.length || 0);
+      
+      if (!recentMessages || recentMessages.length === 0) {
+        console.log('[Title] ⚠️ 没有消息可以生成标题');
         return;
       }
 
       // Reverse to get chronological order
       const messagesForSummary = recentMessages.reverse();
+      console.log('[Title] 📝 用于生成标题的消息:', messagesForSummary);
 
       // Create prompt for title generation
       const conversationContext = messagesForSummary
@@ -100,15 +121,20 @@ ${conversationContext}
 
 标题：`;
 
+      console.log('[Title] 📤 生成标题的prompt长度:', titlePrompt.length);
+
       // Call AI API to generate title
       const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
       const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/chat` : '/api/chat';
       const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/chat';
 
+      console.log('[Title] 🌐 使用端点:', primaryEndpoint);
+
       const makeRequest = async (url: string) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         try {
+          console.log('[Title] 🔄 发送请求到:', url);
           const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -120,7 +146,11 @@ ${conversationContext}
             cache: 'no-store',
             keepalive: true,
           });
+          console.log('[Title] 📨 收到响应，状态码:', res.status);
           return res;
+        } catch (err) {
+          console.error('[Title] ⚠️ 请求异常:', err);
+          throw err;
         } finally {
           clearTimeout(timeoutId);
         }
@@ -128,33 +158,42 @@ ${conversationContext}
 
       let aiRes = await makeRequest(primaryEndpoint);
       if (aiRes.status === 404 && primaryEndpoint !== fallbackEndpoint) {
+        console.log('[Title] 🔄 主端点404，尝试备用端点:', fallbackEndpoint);
         aiRes = await makeRequest(fallbackEndpoint);
       }
 
       if (!aiRes.ok) {
         // 读取错误响应
         const errorText = await aiRes.text().catch(() => 'Unknown error');
-        console.error('Failed to generate title, status:', aiRes.status, 'error:', errorText);
+        console.error('[Title] ❌ API调用失败, status:', aiRes.status, 'error:', errorText);
         hasGeneratedTitleRef.current = false;
         return;
       }
 
       if (!aiRes.body) {
-        console.error('No response body from title generation API');
+        console.error('[Title] ❌ 响应体为空');
         hasGeneratedTitleRef.current = false;
         return;
       }
 
+      console.log('[Title] 📖 开始读取流式响应...');
       // Read streaming response
       const reader = aiRes.body.getReader();
       const decoder = new TextDecoder();
       let titleBuffer = '';
       let buffer = '';
+      let chunkCount = 0;
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+        if (done) {
+          console.log('[Title] ✅ 流读取完成');
+          break;
+        }
+        chunkCount++;
+        const chunk = decoder.decode(value, { stream: true });
+        console.log(`[Title] 📦 Chunk ${chunkCount}:`, chunk);
+        buffer += chunk;
 
         let idx: number;
         while ((idx = buffer.indexOf('\n')) !== -1) {
@@ -164,27 +203,35 @@ ${conversationContext}
           if (!line) continue;
           if (line.startsWith('data:')) {
             const dataStr = line.slice(5).trim(); // trim 去掉 "data:" 后的空格
+            console.log('[Title] 📄 Data line:', dataStr);
             if (dataStr === '[DONE]') {
+              console.log('[Title] 🏁 收到 [DONE] 标记');
               break;
             } else if (dataStr && !dataStr.startsWith('{')) {
               // 只拼接非 JSON 的纯文本内容
               titleBuffer += dataStr;
+              console.log('[Title] ➕ 累加文本，当前buffer:', titleBuffer);
             } else if (dataStr.startsWith('{')) {
               // 检查是否是错误 JSON
               try {
                 const jsonResponse = JSON.parse(dataStr);
+                console.log('[Title] 📋 解析JSON:', jsonResponse);
                 if (jsonResponse.error) {
-                  console.error('Title generation API returned error:', jsonResponse.error);
+                  console.error('[Title] ❌ API返回错误:', jsonResponse.error);
                   hasGeneratedTitleRef.current = false;
                   return;
                 }
               } catch (e) {
                 // JSON 解析失败，忽略
+                console.log('[Title] ⚠️ JSON解析失败，忽略:', dataStr.substring(0, 50));
               }
             }
           }
         }
       }
+
+      console.log('[Title] 📊 原始titleBuffer:', titleBuffer);
+      console.log('[Title] 📊 titleBuffer长度:', titleBuffer.length);
 
       // Clean up the title (remove quotes, trim, limit length)
       const generatedTitle = titleBuffer
@@ -192,8 +239,10 @@ ${conversationContext}
         .replace(/^["'「『]|["'」』]$/g, '')
         .substring(0, 30);
 
+      console.log('[Title] 🧹 清理后的标题:', generatedTitle);
+
       if (!generatedTitle) {
-        console.log('Empty title generated, keeping default title');
+        console.log('[Title] ⚠️ 生成的标题为空，保留默认标题');
         hasGeneratedTitleRef.current = false;
         return;
       }
@@ -203,10 +252,12 @@ ${conversationContext}
           generatedTitle.toLowerCase().includes('upstream') ||
           generatedTitle.includes('{') || 
           generatedTitle.includes('}')) {
-        console.error('Invalid title content detected (contains error indicators):', generatedTitle);
+        console.error('[Title] ❌ 标题包含错误指示词:', generatedTitle);
         hasGeneratedTitleRef.current = false;
         return;
       }
+
+      console.log('[Title] ✅ 标题验证通过，准备更新数据库');
 
       // Update conversation title in database
       const { error: updateError } = await supabase
@@ -215,17 +266,17 @@ ${conversationContext}
         .eq('id', conversationId);
 
       if (updateError) {
-        console.error('Error updating conversation title:', updateError);
+        console.error('[Title] ❌ 更新标题失败:', updateError);
       } else {
-        console.log('Conversation title updated:', generatedTitle);
+        console.log('[Title] 🎉 标题更新成功:', generatedTitle);
         hasGeneratedTitleRef.current = true;
       }
     } catch (error) {
       // 捕获所有错误但不显示给用户（标题生成失败不影响主功能）
-      console.error('Error generating conversation title:', error);
+      console.error('[Title] ❌ 生成标题异常:', error);
       // 如果是网络错误或超时，静默失败
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Title generation timeout, keeping default title');
+        console.log('[Title] ⏱️ 标题生成超时，保留默认标题');
       }
     }
   }, [conversationId, aiRole]);
