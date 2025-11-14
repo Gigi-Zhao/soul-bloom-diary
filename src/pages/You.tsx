@@ -255,79 +255,20 @@ const You = () => {
     }
   };
 
-  // When user clicks the floating bubble, create a conversation with
-  // an initial AI message (the bubbleMessage) and navigate into it so
-  // the AI message appears as sent and waits for the user's reply.
-  // 【重要】只有点击气泡时，消息才会被存入数据库
-  const handleBubbleClick = async () => {
+  // When user clicks the floating bubble, navigate to chat with initial message
+  // 【重要】不立即创建对话，只传递初始消息内容，等用户发送消息时再创建对话
+  const handleBubbleClick = () => {
     if (!aiRole) return;
-    try {
-      setLoading(true);
-      // Ensure bubbleMessage is available; fall back to catchphrase
-      const initialContent = bubbleMessage || aiRole.catchphrase || `嘿！有什么想和我分享的吗？`;
-      
-      console.log('[Bubble Click] 用户点击气泡，开始创建对话并存入消息:', initialContent);
+    
+    // Ensure bubbleMessage is available; fall back to catchphrase
+    const initialContent = bubbleMessage || aiRole.catchphrase || `嘿！有什么想和我分享的吗？`;
+    
+    console.log('[Bubble Click] 用户点击气泡，传递初始消息（不创建对话）:', initialContent);
 
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/auth');
-        return;
-      }
-
-      // Create a new conversation record
-      const timestamp = new Date().toLocaleString('zh-CN', {
-        month: 'numeric',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      const { data: newConv, error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          user_id: user.id,
-          ai_role_id: aiRole.id,
-          title: `${timestamp} 对话`,
-        })
-        .select()
-        .single();
-
-      if (convError || !newConv) {
-        console.error('[Bubble Click] 创建对话失败:', convError);
-        toast({ title: '创建对话失败', description: convError?.message || '未知错误', variant: 'destructive' });
-        return;
-      }
-
-      console.log('[Bubble Click] 对话创建成功，ID:', newConv.id);
-
-      // Insert AI initial message (存入数据库)
-      const { data: aiMsg, error: aiMsgError } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: newConv.id,
-          sender_role: 'ai',
-          content: initialContent,
-        })
-        .select()
-        .single();
-
-      if (aiMsgError) {
-        console.error('[Bubble Click] 插入AI消息失败:', aiMsgError);
-        toast({ title: '发送消息失败', description: aiMsgError.message, variant: 'destructive' });
-        // Still navigate so user can start a conversation
-      } else {
-        console.log('[Bubble Click] AI消息已存入数据库，消息ID:', aiMsg?.id);
-      }
-
-      // Navigate into the chat with the conversation id so Chat.tsx loads messages
-      navigate(`/chat/${aiRole.id}?conversation=${newConv.id}`);
-    } catch (error) {
-      console.error('handleBubbleClick error:', error);
-      toast({ title: '操作失败', description: error instanceof Error ? error.message : '未知错误', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
+    // Navigate to chat page with initial AI message in state (不带 conversation ID)
+    navigate(`/chat/${aiRole.id}`, {
+      state: { initialAIMessage: initialContent }
+    });
   };
 
   const handleConversationClick = (conversationId: string) => {

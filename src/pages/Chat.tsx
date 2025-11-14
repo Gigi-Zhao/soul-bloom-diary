@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ const Chat = () => {
   const { roleId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -52,6 +53,9 @@ const Chat = () => {
   const conversationCreatedRef = useRef(false);
   const hasGeneratedTitleRef = useRef(false);
   const hasNewMessagesRef = useRef(false); // 追踪是否有新消息发送
+  
+  // 从气泡点击传递来的初始AI消息（未持久化）
+  const pendingInitialAIMessageRef = useRef<string | null>(null);
 
   // Function to update streaming message in UI
   const updateStreamingMessage = (content: string) => {
@@ -283,12 +287,30 @@ ${conversationContext}
           // New conversation - don't create in DB yet, wait for first message
           setIsNewConversation(true);
           setConversationId(null);
+          
+          // 检查是否从气泡点击带来了初始AI消息
+          const navState = location.state as { initialAIMessage?: string } | null;
+          if (navState?.initialAIMessage) {
+            console.log('[Chat Init] 检测到初始AI消息（来自气泡点击）:', navState.initialAIMessage);
+            pendingInitialAIMessageRef.current = navState.initialAIMessage;
+            
+            // 在UI中显示临时的AI消息（使用临时ID，conversation_id为空字符串）
+            const tempMsg: Message = {
+              id: `temp-initial-${Date.now()}`,
+              conversation_id: '', // 暂时为空，等创建对话后更新
+              sender_role: 'ai',
+              content: navState.initialAIMessage,
+              created_at: new Date().toISOString(),
+            };
+            setMessages([tempMsg]);
+            setTimeout(scrollToBottom, 100);
+          }
         }
       }
     };
 
     initializeChat();
-  }, [roleId, searchParams, navigate, toast]);
+  }, [roleId, searchParams, navigate, toast, location]);
 
   // 移除 beforeunload 事件处理：标题现在在 AI 回复后自动生成，无需在页面卸载时处理
 
@@ -412,6 +434,34 @@ ${conversationContext}
         setConversationId(newConv.id);
         setIsNewConversation(false);
         conversationCreatedRef.current = true;
+        
+        // 如果有待保存的初始AI消息（来自气泡点击），现在保存到数据库
+        if (pendingInitialAIMessageRef.current) {
+          console.log('[Chat] 保存初始AI消息到数据库:', pendingInitialAIMessageRef.current);
+          const { data: initialAIMsg, error: initialAIError } = await supabase
+            .from('messages')
+            .insert({
+              conversation_id: activeConversationId,
+              sender_role: 'ai',
+              content: pendingInitialAIMessageRef.current,
+            })
+            .select()
+            .single();
+
+          if (initialAIError) {
+            console.error('[Chat] 保存初始AI消息失败:', initialAIError);
+          } else if (initialAIMsg) {
+            console.log('[Chat] 初始AI消息已保存，ID:', initialAIMsg.id);
+            // 更新UI中的临时消息为真实消息
+            messageIdsRef.current.add(initialAIMsg.id);
+            setMessages(prev => prev.map(m => 
+              m.id.startsWith('temp-initial-') ? initialAIMsg : m
+            ));
+          }
+          
+          // 清除待保存标记
+          pendingInitialAIMessageRef.current = null;
+        }
       }
 
       if (!activeConversationId) {
