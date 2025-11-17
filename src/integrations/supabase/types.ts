@@ -26,6 +26,7 @@ export type Database = {
           name: string
           prompt: string
           tags: string[] | null
+          user_id: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -38,6 +39,7 @@ export type Database = {
           name: string
           prompt: string
           tags?: string[] | null
+          user_id?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -50,8 +52,17 @@ export type Database = {
           name?: string
           prompt?: string
           tags?: string[] | null
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       conversations: {
         Row: {
@@ -130,6 +141,48 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      journal_comments: {
+        Row: {
+          id: string
+          journal_entry_id: string
+          ai_role_id: string
+          content: string
+          created_at: string
+          is_read: boolean
+        }
+        Insert: {
+          id?: string
+          journal_entry_id: string
+          ai_role_id: string
+          content: string
+          created_at?: string
+          is_read?: boolean
+        }
+        Update: {
+          id?: string
+          journal_entry_id?: string
+          ai_role_id?: string
+          content?: string
+          created_at?: string
+          is_read?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_comments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_comments_ai_role_id_fkey"
+            columns: ["ai_role_id"]
+            isOneToOne: false
+            referencedRelation: "ai_roles"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       messages: {
         Row: {

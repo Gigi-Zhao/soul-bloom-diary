@@ -55,6 +55,92 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selected
   }, [entry]);
 
   /**
+   * Trigger AI comments generation
+   */
+  const triggerAIComments = async (entryId: string, content: string, mood: string) => {
+    try {
+      console.log('[DiaryEntryForm] Triggering AI comments for entry:', entryId);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get all AI roles created by the user
+      const { data: aiRoles, error: rolesError } = await supabase
+        .from('ai_roles')
+        .select('id, name, prompt, model, avatar_url')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+
+      if (rolesError) {
+        console.error('[DiaryEntryForm] Error fetching AI roles:', rolesError);
+        return;
+      }
+
+      if (!aiRoles || aiRoles.length === 0) {
+        console.log('[DiaryEntryForm] No AI roles found for this user');
+        return;
+      }
+
+      console.log(`[DiaryEntryForm] Found ${aiRoles.length} AI roles created by user, scheduling comments`);
+
+      // Schedule comments for each AI role with random delays (0-5 minutes)
+      aiRoles.forEach((role, index) => {
+        const delay = Math.random() * 5 * 60 * 1000; // 0-5 minutes in milliseconds
+        console.log(`[DiaryEntryForm] Scheduling comment from ${role.name} in ${Math.round(delay / 1000)} seconds`);
+        
+        setTimeout(async () => {
+          try {
+            console.log(`[DiaryEntryForm] Generating comment from ${role.name}`);
+            
+            // Call the generate-comment API
+            const response = await fetch('/api/generate-comment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                journalContent: content,
+                journalMood: mood,
+                aiRoleName: role.name,
+                aiRolePrompt: role.prompt,
+                model: role.model,
+              }),
+            });
+
+            if (!response.ok) {
+              console.error(`[DiaryEntryForm] Error generating comment from ${role.name}:`, response.status);
+              return;
+            }
+
+            const { comment } = await response.json();
+            console.log(`[DiaryEntryForm] Comment generated from ${role.name}:`, comment);
+
+            // Save comment to database
+            const { error: insertError } = await supabase
+              .from('journal_comments')
+              .insert({
+                journal_entry_id: entryId,
+                ai_role_id: role.id,
+                content: comment,
+                is_read: false,
+              });
+
+            if (insertError) {
+              console.error(`[DiaryEntryForm] Error saving comment from ${role.name}:`, insertError);
+            } else {
+              console.log(`[DiaryEntryForm] Comment from ${role.name} saved successfully`);
+            }
+          } catch (error) {
+            console.error(`[DiaryEntryForm] Error processing comment from ${role.name}:`, error);
+          }
+        }, delay);
+      });
+    } catch (error) {
+      console.error('[DiaryEntryForm] Error triggering AI comments:', error);
+    }
+  };
+
+  /**
    * Handle saving the diary entry to Supabase
    */
   const handleSave = async () => {
@@ -90,7 +176,7 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selected
         const dateStr = format(entryDate, 'yyyy.MM.dd');
         const timeStr = format(entryDate, 'HH.mm');
 
-        const { error } = await supabase
+        const { data: newEntry, error } = await supabase
           .from('journal_entries')
           .insert({
             user_id: user.id,
@@ -99,9 +185,19 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selected
             comment_count: 0,
             date: dateStr,
             time: timeStr,
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+        
+        console.log('[DiaryEntryForm] New entry created:', newEntry.id);
+        
+        // Trigger AI comments generation for new entry
+        if (newEntry) {
+          triggerAIComments(newEntry.id, content.trim(), mood);
+        }
+        
         toast.success("日记保存成功！");
       }
 

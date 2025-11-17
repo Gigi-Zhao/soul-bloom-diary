@@ -155,6 +155,7 @@ const RoleSetup = () => {
         mbti_type: mbtiType || null,
         catchphrase: catchphrase.trim(),
         model: 'meituan/longcat-flash-chat:free',
+        user_id: user.id,
       });
 
       // Insert into database
@@ -169,6 +170,7 @@ const RoleSetup = () => {
           catchphrase: catchphrase.trim(),
           prompt: prompt,
           model: 'meituan/longcat-flash-chat:free',
+          user_id: user.id,
         })
         .select();
 

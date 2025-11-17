@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from "date-fns";
 import { MoodSelector } from "@/components/journals/MoodSelector";
@@ -28,6 +29,7 @@ interface JournalEntry {
   comment_count: number;
   date?: string;
   time?: string;
+  unread_comments?: number;
 }
 
 /**
@@ -36,6 +38,7 @@ interface JournalEntry {
  * Users can view entries by date and create new entries
  */
 const Journals = () => {
+  const navigate = useNavigate();
   // State for selected date and current month
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -76,11 +79,26 @@ const Journals = () => {
       if (error) throw error;
 
       if (data) {
-        setEntries(data);
+        // Fetch unread comment counts for each entry
+        const entriesWithUnread = await Promise.all(
+          data.map(async (entry) => {
+            const { data: comments, error: commentError } = await supabase
+              .from('journal_comments')
+              .select('id', { count: 'exact' })
+              .eq('journal_entry_id', entry.id)
+              .eq('is_read', false);
+            
+            const unreadCount = comments?.length || 0;
+            console.log(`[Journals] Entry ${entry.id} has ${unreadCount} unread comments`);
+            return { ...entry, unread_comments: unreadCount };
+          })
+        );
+
+        setEntries(entriesWithUnread);
 
         // Group entries by date
         const grouped = new Map<string, JournalEntry[]>();
-        data.forEach((entry) => {
+        entriesWithUnread.forEach((entry) => {
           const dateKey = entry.date || format(new Date(entry.created_at), 'yyyy-MM-dd');
           const normalizedKey = dateKey.replace(/\./g, '-');
           if (!grouped.has(normalizedKey)) {
@@ -91,7 +109,7 @@ const Journals = () => {
         setEntriesByDate(grouped);
       }
     } catch (error) {
-      console.error('Error fetching entries:', error);
+      console.error('[Journals] Error fetching entries:', error);
     } finally {
       setLoading(false);
     }
@@ -205,9 +223,8 @@ const Journals = () => {
    * Handle clicking on an existing entry to view/edit it
    */
   const handleEntryClick = (entry: JournalEntry) => {
-    setSelectedEntry(entry);
-    setSelectedMood(entry.mood);
-    setShowEntryForm(true);
+    console.log('[Journals] Entry clicked, navigating to detail:', entry.id);
+    navigate(`/journal/${entry.id}`);
   };
 
   const days = getDaysInMonth();
@@ -328,9 +345,13 @@ const Journals = () => {
                       </div>
 
                       {/* Comment Count */}
-                      <div className="flex items-center gap-1 text-muted-foreground flex-shrink-0">
+                      <div className="flex items-center gap-1 text-muted-foreground flex-shrink-0 relative">
                         <MessageCircle className="w-4 h-4" />
                         <span className="text-xs">{entry.comment_count}</span>
+                        {/* Unread indicator - red dot */}
+                        {entry.unread_comments && entry.unread_comments > 0 && (
+                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                        )}
                       </div>
                     </div>
                   </CardContent>

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Splash from "./pages/Splash";
 import Auth from "./pages/Auth";
 import Journals from "./pages/Journals";
+import JournalDetail from "./pages/JournalDetail";
 import You from "./pages/You";
 import Friends from "./pages/Friends";
 import Chat from "./pages/Chat";
@@ -31,11 +32,12 @@ const CachedPages = () => {
     { path: '/profile', component: <Profile /> },
   ];
 
-  // 检查当前路径是否是缓存路由
+  // 检查当前路径是否是缓存路由或者是来自缓存路由的子页面
   const isCachedRoute = cachedRoutes.some(route => path === route.path);
+  const isJournalDetailRoute = path.startsWith('/journal/');
 
-  if (!isCachedRoute) {
-    // 如果不是缓存路由，使用正常的 Routes
+  if (!isCachedRoute && !isJournalDetailRoute) {
+    // 如果不是缓存路由或日记详情页，使用正常的 Routes
     return (
       <Routes>
         <Route path="/" element={<Splash />} />
@@ -63,6 +65,25 @@ const CachedPages = () => {
           {route.component}
         </div>
       ))}
+      
+      {/* 日记详情页 - 叠加在 Journals 页面之上 */}
+      {isJournalDetailRoute && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 100,
+            background: 'white',
+          }}
+        >
+          <Routes>
+            <Route path="/journal/:id" element={<JournalDetail />} />
+          </Routes>
+        </div>
+      )}
     </>
   );
 };

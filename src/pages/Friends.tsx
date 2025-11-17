@@ -45,19 +45,29 @@ const Friends = () => {
 
   useEffect(() => {
     const fetchAIRoles = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.log('[Friends] User not logged in');
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('ai_roles')
         .select('id, name, description, avatar_url')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('Error fetching AI roles:', error);
+        console.error('[Friends] Error fetching AI roles:', error);
         toast({
           title: "加载失败",
           description: error.message,
           variant: "destructive",
         });
       } else {
+        console.log(`[Friends] Loaded ${data?.length || 0} AI roles for user`);
         setAiRoles(data || []);
       }
       setLoading(false);
