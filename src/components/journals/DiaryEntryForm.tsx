@@ -59,84 +59,162 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selected
    */
   const triggerAIComments = async (entryId: string, content: string, mood: string) => {
     try {
-      console.log('[DiaryEntryForm] Triggering AI comments for entry:', entryId);
+      console.log('[DiaryEntryForm] ========== 开始触发AI评论 ==========');
+      console.log('[DiaryEntryForm] Entry ID:', entryId);
+      console.log('[DiaryEntryForm] Content:', content);
+      console.log('[DiaryEntryForm] Mood:', mood);
       
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('[DiaryEntryForm] ❌ 用户未登录');
+        return;
+      }
+      
+      console.log('[DiaryEntryForm] ✅ 当前用户 ID:', user.id);
 
       // Get all AI roles created by the user
       const { data: aiRoles, error: rolesError } = await supabase
         .from('ai_roles')
-        .select('id, name, prompt, model, avatar_url')
+        .select('id, name, prompt, model, avatar_url, user_id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true });
 
+      console.log('[DiaryEntryForm] AI 角色查询结果:', { aiRoles, error: rolesError });
+
       if (rolesError) {
-        console.error('[DiaryEntryForm] Error fetching AI roles:', rolesError);
+        console.error('[DiaryEntryForm] ❌ 查询AI角色出错:', rolesError);
         return;
       }
 
       if (!aiRoles || aiRoles.length === 0) {
-        console.log('[DiaryEntryForm] No AI roles found for this user');
+        console.log('[DiaryEntryForm] ⚠️ 没有找到该用户创建的AI角色');
+        console.log('[DiaryEntryForm] 请检查：1. 是否创建了AI角色 2. AI角色的user_id是否正确');
         return;
       }
 
-      console.log(`[DiaryEntryForm] Found ${aiRoles.length} AI roles created by user, scheduling comments`);
+      console.log(`[DiaryEntryForm] ✅ 找到 ${aiRoles.length} 个AI角色，准备生成评论:`, aiRoles.map(r => r.name));
 
-      // Schedule comments for each AI role with random delays (0-5 minutes)
+      // Schedule comments for each AI role with random delays (0-30 seconds for testing)
       aiRoles.forEach((role, index) => {
-        const delay = Math.random() * 5 * 60 * 1000; // 0-5 minutes in milliseconds
-        console.log(`[DiaryEntryForm] Scheduling comment from ${role.name} in ${Math.round(delay / 1000)} seconds`);
+        const delay = Math.random() * 30 * 1000; // 0-30 seconds for testing (change to 5*60*1000 for production)
+        console.log(`[DiaryEntryForm] ⏰ 为 ${role.name} 安排评论，${Math.round(delay / 1000)} 秒后执行`);
         
         setTimeout(async () => {
-          try {
-            console.log(`[DiaryEntryForm] Generating comment from ${role.name}`);
-            
-            // Call the generate-comment API
-            const response = await fetch('/api/generate-comment', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                journalContent: content,
-                journalMood: mood,
-                aiRoleName: role.name,
-                aiRolePrompt: role.prompt,
-                model: role.model,
-              }),
-            });
+          // Retry mechanism: up to 3 attempts
+          let attempts = 0;
+          const maxAttempts = 3;
+          let success = false;
 
-            if (!response.ok) {
-              console.error(`[DiaryEntryForm] Error generating comment from ${role.name}:`, response.status);
-              return;
-            }
+          while (attempts < maxAttempts && !success) {
+            attempts++;
+            console.log(`[DiaryEntryForm] 📡 第 ${attempts}/${maxAttempts} 次尝试为 ${role.name} 生成评论...`);
 
-            const { comment } = await response.json();
-            console.log(`[DiaryEntryForm] Comment generated from ${role.name}:`, comment);
-
-            // Save comment to database
-            const { error: insertError } = await supabase
-              .from('journal_comments')
-              .insert({
-                journal_entry_id: entryId,
-                ai_role_id: role.id,
-                content: comment,
-                is_read: false,
+            try {
+              console.log(`[DiaryEntryForm] 🚀 开始为 ${role.name} 生成评论...`);
+              
+              // Call the generate-comment API
+              const response = await fetch('/api/generate-comment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  journalContent: content,
+                  journalMood: mood,
+                  aiRoleName: role.name,
+                  aiRolePrompt: role.prompt,
+                  model: role.model,
+                }),
               });
 
-            if (insertError) {
-              console.error(`[DiaryEntryForm] Error saving comment from ${role.name}:`, insertError);
-            } else {
-              console.log(`[DiaryEntryForm] Comment from ${role.name} saved successfully`);
+              console.log(`[DiaryEntryForm] 📊 API响应状态 (${role.name}):`, {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                type: response.type,
+                url: response.url
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`[DiaryEntryForm] ❌ API返回错误 (${role.name}):`, {
+                  status: response.status,
+                  statusText: response.statusText,
+                  error: errorText
+                });
+                
+                if (attempts < maxAttempts) {
+                  console.log(`[DiaryEntryForm] ⏳ 等待 2 秒后重试...`);
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  continue;
+                } else {
+                  console.error(`[DiaryEntryForm] 💔 已达到最大重试次数 (${maxAttempts})，放弃为 ${role.name} 生成评论`);
+                  return;
+                }
+              }
+
+              const result = await response.json();
+              console.log(`[DiaryEntryForm] ✅ 评论已生成 (${role.name}):`, result.comment);
+
+              // Save comment to database
+              const insertData = {
+                journal_entry_id: entryId,
+                ai_role_id: role.id,
+                content: result.comment,
+                is_read: false,
+              };
+              
+              console.log(`[DiaryEntryForm] 准备插入评论数据 (${role.name}):`, insertData);
+              
+              const { data: insertedData, error: insertError } = await supabase
+                .from('journal_comments')
+                .insert(insertData)
+                .select();
+
+              if (insertError) {
+                console.error(`[DiaryEntryForm] ❌ 保存评论失败 (${role.name}):`, insertError);
+                console.error(`[DiaryEntryForm] 错误详情:`, {
+                  code: insertError.code,
+                  message: insertError.message,
+                  details: insertError.details,
+                  hint: insertError.hint
+                });
+                
+                if (attempts < maxAttempts) {
+                  console.log(`[DiaryEntryForm] ⏳ 等待 2 秒后重试...`);
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  continue;
+                } else {
+                  console.error(`[DiaryEntryForm] 💔 已达到最大重试次数 (${maxAttempts})，放弃保存评论`);
+                  return;
+                }
+              } else {
+                console.log(`[DiaryEntryForm] 💾 评论已保存到数据库 (${role.name})`, insertedData);
+                success = true;
+              }
+            } catch (error) {
+              console.error(`[DiaryEntryForm] ❌ 处理评论时出错 (${role.name}):`, error);
+              
+              if (attempts < maxAttempts) {
+                console.log(`[DiaryEntryForm] ⏳ 等待 2 秒后重试...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+              } else {
+                console.error(`[DiaryEntryForm] 💔 已达到最大重试次数 (${maxAttempts})，放弃处理`);
+                return;
+              }
             }
-          } catch (error) {
-            console.error(`[DiaryEntryForm] Error processing comment from ${role.name}:`, error);
+          }
+
+          if (success) {
+            console.log(`[DiaryEntryForm] 🎉 ${role.name} 的评论已成功生成并保存！`);
           }
         }, delay);
       });
+      
+      console.log('[DiaryEntryForm] ========== AI评论触发完成 ==========');
     } catch (error) {
-      console.error('[DiaryEntryForm] Error triggering AI comments:', error);
+      console.error('[DiaryEntryForm] ❌ 触发AI评论时出错:', error);
     }
   };
 
