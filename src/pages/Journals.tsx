@@ -349,7 +349,7 @@ const Journals = () => {
                         <MessageCircle className="w-4 h-4" />
                         <span className="text-xs">{entry.comment_count}</span>
                         {/* Unread indicator - red dot */}
-                        {entry.unread_comments && entry.unread_comments > 0 && (
+                        {(entry.unread_comments || 0) > 0 && (
                           <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
                         )}
                       </div>
