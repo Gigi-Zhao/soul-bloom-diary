@@ -353,11 +353,6 @@ const You = () => {
       {/* Conversation History Section */}
       <ScrollArea className="flex-1 px-4">
         <div className="max-w-2xl mx-auto space-y-4">
-          <div className="flex items-center gap-2 mb-6">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-gray-700">对话回顾</h2>
-          </div>
-
           {conversations.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 mb-4">还没有对话记录</p>
@@ -383,38 +378,50 @@ const You = () => {
                   >
                     {/* Timestamp on the right */}
                     <div className="flex justify-end mb-2">
-                      <span className="text-xs text-gray-400">
-                        {new Date(conv.created_at).toLocaleString('zh-CN', {
-                          month: 'numeric',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true
-                        }).toUpperCase()}
-                      </span>
-                      {/* 只在用户发起时显示用户头像 */}
+                      {/* AI 发起时显示 AI 头像在左上角 */}
+                      {!isUserInitiated && (
+                        <div className="flex-1 flex items-center gap-2">
+                          <Avatar className="w-6 h-6">
+                            <AvatarImage src={aiRole.avatar_url} />
+                            <AvatarFallback className="bg-gray-600 text-white text-xs">
+                              {aiRole.name.slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-gray-400">
+                            {new Date(conv.created_at).toLocaleString('zh-CN', {
+                              month: 'numeric',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            }).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      {/* 用户发起时显示时间戳和用户头像在右上角 */}
                       {isUserInitiated && (
-                        <Avatar className="w-6 h-6 ml-2">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user`} />
-                          <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-xs">
-                            我
-                          </AvatarFallback>
-                        </Avatar>
+                        <>
+                          <span className="text-xs text-gray-400">
+                            {new Date(conv.created_at).toLocaleString('zh-CN', {
+                              month: 'numeric',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            }).toUpperCase()}
+                          </span>
+                          <Avatar className="w-6 h-6 ml-2">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user`} />
+                            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-xs">
+                              我
+                            </AvatarFallback>
+                          </Avatar>
+                        </>
                       )}
                     </div>
 
                     <div className="flex gap-3">
-                      {/* 只在 AI 发起时显示 AI 头像 */}
-                      {!isUserInitiated && (
-                        <Avatar className="w-10 h-10 flex-shrink-0 mt-1">
-                          <AvatarImage src={aiRole.avatar_url} />
-                          <AvatarFallback className="bg-gray-600 text-white text-xs">
-                            {aiRole.name.slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      
-                      <div className={`flex-1 ${isUserInitiated ? '' : ''}`}>
+                      <div className="flex-1">
                         <div
                           // 调整气泡框的背景色和透明度
                           className="bg-white/50 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
