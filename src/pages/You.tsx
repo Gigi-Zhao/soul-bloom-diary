@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Sparkles } from "lucide-react";
+import { MessageCircle, Calendar, Music, Archive, Heart, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent } from "@/components/ui/card";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -15,41 +15,77 @@ interface AIRole {
   catchphrase: string;
 }
 
-interface ConversationSummary {
-  id: string;
-  created_at: string;
-  first_message: string;
-  title: string;
-  sender_role: 'user' | 'ai';
-}
-
 /**
  * You Page Component
- * Main character profile page with conversation history
+ * Main character profile page with AI companion interaction
  */
 const You = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [aiRole, setAiRole] = useState<AIRole | null>(null);
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [bubbleMessage, setBubbleMessage] = useState<string>("");
   const [loadingBubble, setLoadingBubble] = useState(false);
-  const hasInitializedRef = useRef(false); // 防止重复初始化
-  const bubbleRetryCountRef = useRef(0); // 气泡消息API重试计数
-  const bubbleSuccessRef = useRef(false); // 气泡消息是否成功生成
+  const [relationshipDays, setRelationshipDays] = useState<number>(0);
+  const [touchFeedback, setTouchFeedback] = useState<{ text: string; x: number; y: number } | null>(null);
+  const hasInitializedRef = useRef(false);
+  const bubbleRetryCountRef = useRef(0);
+  const bubbleSuccessRef = useRef(false);
+  const characterAreaRef = useRef<HTMLDivElement>(null);
+  const [userName, setUserName] = useState<string>("小Q");
 
-  // 生成气泡消息 (仅在前端state中，不存入数据库)
-  // 只有当用户点击气泡时，才会通过 handleBubbleClick 存入数据库
-  // 带重试机制：最多重试3次，成功后不再请求
+  // Calculate relationship days since first journal entry
+  useEffect(() => {
+    const calculateDays = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: firstJournal } = await supabase
+          .from('journal_entries')
+          .select('created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (firstJournal) {
+          const firstDate = new Date(firstJournal.created_at);
+          const today = new Date();
+          const diffTime = Math.abs(today.getTime() - firstDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          setRelationshipDays(diffDays);
+        }
+      } catch (error) {
+        console.error('Error calculating relationship days:', error);
+      }
+    };
+
+    calculateDays();
+  }, []);
+
+  // Handle character touch feedback
+  const handleCharacterTouch = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!characterAreaRef.current) return;
+
+    const feedbackTexts = ["嘿嘿，痒~", "我在听呢", "想听歌了吗？", "嗯？怎么了？"];
+    const randomText = feedbackTexts[Math.floor(Math.random() * feedbackTexts.length)];
+
+    const rect = characterAreaRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    setTouchFeedback({ text: randomText, x, y });
+    setTimeout(() => setTouchFeedback(null), 1000);
+  };
+
+  // Generate bubble message
   const generateBubbleMessage = async (aiRoleName: string, isRetry: boolean = false) => {
-    // 如果已经成功生成过，不再重复请求
     if (bubbleSuccessRef.current) {
       console.log('[Bubble] 气泡消息已成功生成，跳过重复请求');
       return;
     }
 
-    // 检查重试次数
     if (isRetry) {
       bubbleRetryCountRef.current += 1;
       if (bubbleRetryCountRef.current > 3) {
@@ -66,8 +102,8 @@ const You = () => {
 
     try {
       setLoadingBubble(true);
-      console.log('[Bubble] 开始生成气泡消息（仅前端预览，不存数据库），角色：', aiRoleName);
-      // 获取当前用户
+      console.log('[Bubble] 开始生成气泡消息，角色：', aiRoleName);
+      
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) {
         console.error('[Bubble] 获取用户失败:', userError);
@@ -77,7 +113,7 @@ const You = () => {
         console.warn('[Bubble] 未获取到用户，终止气泡生成');
         return;
       }
-      // 获取最新的日记
+
       const { data: latestJournal, error: journalError } = await supabase
         .from('journal_entries')
         .select('content, mood, created_at')
@@ -85,18 +121,21 @@ const You = () => {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      
       if (journalError) {
         console.error('[Bubble] 获取最新日记失败:', journalError);
         throw journalError;
       }
+
       console.log('[Bubble] 最新日记：', latestJournal);
+      
       if (latestJournal) {
-        // 调用API生成气泡消息
         console.log('[Bubble] 调用API参数:', {
           journalContent: latestJournal.content,
           mood: latestJournal.mood,
           aiRoleName: aiRoleName,
         });
+        
         const response = await fetch('/api/generate-bubble-message', {
           method: 'POST',
           headers: {
@@ -108,13 +147,15 @@ const You = () => {
             aiRoleName: aiRoleName,
           }),
         });
+        
         console.log('[Bubble] API响应状态:', response.status);
         const text = await response.clone().text();
         console.log('[Bubble] API响应原文:', text);
+        
         if (response.ok) {
           const data = await response.json();
           setBubbleMessage(data.message);
-          bubbleSuccessRef.current = true; // 标记成功
+          bubbleSuccessRef.current = true;
           console.log('[Bubble] ✅ 生成气泡消息成功:', data.message);
           setLoadingBubble(false);
         } else {
@@ -122,7 +163,6 @@ const You = () => {
           throw new Error(`API返回错误: ${response.status}`);
         }
       } else {
-        // 如果没有日记，使用默认消息并标记成功
         setBubbleMessage(`嘿！有什么想和我分享的吗？`);
         bubbleSuccessRef.current = true;
         console.log('[Bubble] ✅ 没有找到日记，使用默认气泡');
@@ -132,54 +172,49 @@ const You = () => {
       console.error('[Bubble] 生成气泡消息异常:', error);
       setLoadingBubble(false);
       
-      // 如果还没达到重试上限，则重试
       if (bubbleRetryCountRef.current < 3) {
         console.log(`[Bubble] ⚠️ 请求失败，将进行重试...`);
         setTimeout(() => {
           generateBubbleMessage(aiRoleName, true);
-        }, 1000 * (bubbleRetryCountRef.current + 1)); // 递增延迟：1秒、2秒、3秒
+        }, 1000 * (bubbleRetryCountRef.current + 1));
       } else {
-        // 达到重试上限，使用默认消息
         setBubbleMessage(`你对${aiRoleName}的热情，真让人期待啊......`);
       }
     }
   };
 
   useEffect(() => {
-    // 防止重复初始化
     if (hasInitializedRef.current) {
       return;
     }
 
     const fetchData = async () => {
       try {
-        // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           navigate("/auth");
           return;
         }
 
-        // Fetch "小兵" AI role (hardcoded for now)
+        // Fetch AI role
         const { data: roleData, error: roleError } = await supabase
           .from('ai_roles')
           .select('id, name, avatar_url, catchphrase')
-          .eq('name', '小兵')
+          .eq('user_id', user.id)
+          .limit(1)
           .maybeSingle();
 
         if (roleError) throw roleError;
         
         if (!roleData) {
-          // If no Soldier role, get the first available role
           const { data: firstRole } = await supabase
             .from('ai_roles')
             .select('id, name, avatar_url, catchphrase')
             .limit(1)
-            .single();
+            .maybeSingle();
           
           if (firstRole) {
             setAiRole(firstRole);
-            // 生成气泡消息
             await generateBubbleMessage(firstRole.name);
           } else {
             toast({
@@ -192,44 +227,7 @@ const You = () => {
           }
         } else {
           setAiRole(roleData);
-          // 生成气泡消息
           await generateBubbleMessage(roleData.name);
-        }
-
-        // Fetch conversation summaries
-        if (roleData?.id) {
-          const { data: convData } = await supabase
-            .from('conversations')
-            .select('id, created_at, title')
-            .eq('user_id', user.id)
-            .eq('ai_role_id', roleData.id)
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-          if (convData) {
-            // Fetch first message for each conversation
-            const summaries = await Promise.all(
-              convData.map(async (conv) => {
-                const { data: msgData } = await supabase
-                  .from('messages')
-                  .select('content, sender_role, created_at')
-                  .eq('conversation_id', conv.id)
-                  .order('created_at', { ascending: true })
-                  .limit(1)
-                  .maybeSingle();
-
-                return {
-                  id: conv.id,
-                  created_at: conv.created_at,
-                  title: conv.title || '新对话',
-                  first_message: msgData?.content || '开始新对话',
-                  sender_role: (msgData?.sender_role === 'system' ? 'ai' : msgData?.sender_role) || 'user' as 'user' | 'ai',
-                };
-              })
-            );
-
-            setConversations(summaries);
-          }
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -240,47 +238,38 @@ const You = () => {
         });
       } finally {
         setLoading(false);
-        hasInitializedRef.current = true; // 标记已初始化
+        hasInitializedRef.current = true;
       }
     };
 
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 空依赖数组，只在组件挂载时执行一次 (navigate/toast 稳定，不需要加入依赖)
+  }, []);
 
-  const handleChatClick = () => {
-    if (aiRole) {
-      // Start a new conversation (no conversation ID)
-      navigate(`/chat/${aiRole.id}`);
-    }
-  };
-
-  // When user clicks the floating bubble, navigate to chat with initial message
-  // 【重要】不立即创建对话，只传递初始消息内容，等用户发送消息时再创建对话
   const handleBubbleClick = () => {
     if (!aiRole) return;
     
-    // Ensure bubbleMessage is available; fall back to catchphrase
     const initialContent = bubbleMessage || aiRole.catchphrase || `嘿！有什么想和我分享的吗？`;
-    
-    console.log('[Bubble Click] 用户点击气泡，传递初始消息（不创建对话）:', initialContent);
+    console.log('[Bubble Click] 用户点击气泡，传递初始消息:', initialContent);
 
-    // Navigate to chat page with initial AI message in state (不带 conversation ID)
     navigate(`/chat/${aiRole.id}`, {
       state: { initialAIMessage: initialContent }
     });
   };
 
-  const handleConversationClick = (conversationId: string) => {
+  const handleJournalInput = () => {
+    navigate('/journals');
+  };
+
+  const handleChatClick = () => {
     if (aiRole) {
-      // Continue an existing conversation
-      navigate(`/chat/${aiRole.id}?conversation=${conversationId}`);
+      navigate(`/chat/${aiRole.id}`);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-50 via-pink-50 to-purple-50">
         <p className="text-muted-foreground">加载中...</p>
       </div>
     );
@@ -288,166 +277,152 @@ const You = () => {
 
   if (!aiRole) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-50 via-pink-50 to-purple-50">
         <p className="text-muted-foreground">未找到角色</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f5e6e8] pb-20">
-      {/* Hero Section with Background */}
-      <div className="relative h-[40vh] min-h-[280px] overflow-hidden">
-        {/* Background Image */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${aiRole.avatar_url})`,
-          }}
-        />
+    <div className="min-h-screen bg-[#f0f0f0] relative overflow-hidden">
+      {/* Background layer - full screen */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: `linear-gradient(180deg, rgba(230, 218, 245, 0.7) 0%, rgba(255, 235, 240, 0.9) 100%), url('https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80')`,
+        }}
+      />
+
+      {/* Content layer */}
+      <div className="relative z-10 h-screen flex flex-col px-5 py-5 max-w-md mx-auto">
         
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#f5e6e8]/30 to-[#f5e6e8]" />
-        
-        {/* Floating Chat Bubble */}
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 w-[85%] max-w-md">
-          <div className="relative">
-            {/* Main chat bubble (clickable) */}
-            <div onClick={handleBubbleClick} role="button" tabIndex={0} className="bg-white/50 backdrop-blur-sm rounded-2xl px-6 py-4 shadow-lg cursor-pointer">
-              <p className="text-sm text-gray-800 leading-relaxed">
-                {loadingBubble ? (
-                  <span className="text-gray-500">...</span>
-                ) : (
-                  bubbleMessage || aiRole.catchphrase || `你对${aiRole.name}的热情，真让人期待啊......`
-                )}
+        {/* Header relationship pill */}
+        <div className="flex justify-center mt-10">
+          <div className="bg-white/85 backdrop-blur-[10px] px-5 py-2 rounded-full flex items-center gap-2 border border-white/40" style={{
+            boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
+          }}>
+            <span className="text-sm font-semibold text-[#4A4A4A]">{aiRole.name}</span>
+            <span className="text-base" style={{ animation: 'heartbeat 1.5s infinite' }}>❤️</span>
+            <span className="text-sm font-semibold text-[#4A4A4A]">{userName}</span>
+            <div className="w-px h-3 bg-[#ddd] mx-1" />
+            <span className="text-sm font-semibold text-[#9D85BE]">{relationshipDays} Days</span>
+          </div>
+        </div>
+
+        {/* Speech bubble area */}
+        <div className="flex-1 flex flex-col justify-center items-center relative mt-8">
+          {/* Speech bubble */}
+          <div 
+            onClick={handleBubbleClick}
+            className="absolute top-5 right-2 max-w-[180px] z-20 cursor-pointer"
+            style={{ animation: 'float 3s ease-in-out infinite' }}
+          >
+            <div className="bg-white px-4 py-3 rounded-2xl rounded-br-none relative" style={{
+              boxShadow: '0 5px 20px rgba(0,0,0,0.08)'
+            }}>
+              <p className="text-[13px] text-[#4A4A4A] leading-relaxed">
+                {loadingBubble ? "..." : bubbleMessage || aiRole.catchphrase || "昨晚睡得好吗？我刚调好一段旋律，感觉很像你..."}
               </p>
+              <div 
+                className="absolute bottom-0 right-0 w-0 h-0"
+                style={{
+                  borderTop: '8px solid white',
+                  borderLeft: '8px solid transparent',
+                  transform: 'translate(0, 100%)',
+                }}
+              />
             </div>
-            {/* Tail circles - bottom left corner at 45° angle */}
-            <div className="absolute bottom-0 left-0">
-              <div className="w-3 h-3 bg-white/50 backdrop-blur-sm rounded-full absolute -bottom-2 left-3"></div>
-              <div className="w-2 h-2 bg-white/50 backdrop-blur-sm rounded-full absolute -bottom-4 left-1"></div>
+          </div>
+        </div>
+
+        {/* Journal input card */}
+        <div 
+            onClick={handleJournalInput}
+            className="bg-white/65 backdrop-blur-[15px] rounded-3xl px-5 py-5 mb-4 border border-white/40 flex items-center justify-between cursor-pointer transition-transform duration-200 active:scale-[0.98]"
+            style={{
+              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)'
+            }}
+          >
+            <div className="flex-1">
+              <p className="text-base font-semibold text-[#4A4A4A] mb-1">告诉{aiRole.name}...</p>
+              <p className="text-xs text-[#8E8E93]">今天发生了什么？有什么想倾诉的吗？</p>
             </div>
+            <div className="w-10 h-10 bg-[#9D85BE] rounded-full flex items-center justify-center text-white text-lg">
+              ✎
+            </div>
+          </div>
+
+        {/* Dashboard grid */}
+        <div className="bg-white/50 backdrop-blur-[10px] rounded-3xl p-4 mb-20 grid grid-cols-4 gap-2.5">
+          <div 
+            onClick={handleChatClick}
+            className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
+          >
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
+              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+            }}>
+              💬
+            </div>
+            <span className="text-[11px] text-[#4A4A4A]">发消息</span>
+          </div>
+
+          <div 
+            onClick={() => navigate('/journals')}
+            className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
+          >
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
+              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+            }}>
+              🎶
+            </div>
+            <span className="text-[11px] text-[#4A4A4A]">TA的歌单</span>
+          </div>
+
+          <div 
+            onClick={() => navigate('/journals')}
+            className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
+          >
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
+              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+            }}>
+              📅
+            </div>
+            <span className="text-[11px] text-[#4A4A4A]">心情日历</span>
+          </div>
+
+          <div 
+            onClick={() => navigate('/moments')}
+            className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
+          >
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
+              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+            }}>
+              🧸
+            </div>
+            <span className="text-[11px] text-[#4A4A4A]">记忆柜</span>
           </div>
         </div>
       </div>
 
-      {/* Character Info Section */}
-      <div className="px-6 -mt-8 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">
-          {aiRole.name}
-        </h1>
-        
-        {aiRole.catchphrase && (
-          <p className="text-sm text-gray-600 italic mb-4">"{aiRole.catchphrase}"</p>
-        )}
-        
-        <Button 
-          onClick={handleChatClick}
-          className="bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-lg"
-        >
-          <MessageCircle className="w-4 h-4 mr-2" />
-          开始聊天
-        </Button>
-      </div>
-
-      {/* Conversation History Section */}
-      <ScrollArea className="flex-1 px-4">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {conversations.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 mb-4">还没有对话记录</p>
-              <Button 
-                variant="outline" 
-                onClick={handleChatClick}
-                className="hover:bg-white/50"
-              >
-                开始第一次对话
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {conversations.map((conv, index) => {
-                const isUserInitiated = conv.sender_role === 'user';
-                
-                return (
-                  <div
-                    key={conv.id}
-                    onClick={() => handleConversationClick(conv.id)}
-                    className="relative animate-in fade-in slide-in-from-bottom-4 duration-700 cursor-pointer hover:opacity-80 transition-opacity"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    {/* Timestamp on the right */}
-                    <div className="flex justify-end mb-2">
-                      {/* AI 发起时显示 AI 头像在左上角 */}
-                      {!isUserInitiated && (
-                        <div className="flex-1 flex items-center gap-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarImage src={aiRole.avatar_url} />
-                            <AvatarFallback className="bg-gray-600 text-white text-xs">
-                              {aiRole.name.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs text-gray-400">
-                            {new Date(conv.created_at).toLocaleString('zh-CN', {
-                              month: 'numeric',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true
-                            }).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      {/* 用户发起时显示时间戳和用户头像在右上角 */}
-                      {isUserInitiated && (
-                        <>
-                          <span className="text-xs text-gray-400">
-                            {new Date(conv.created_at).toLocaleString('zh-CN', {
-                              month: 'numeric',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true
-                            }).toUpperCase()}
-                          </span>
-                          <Avatar className="w-6 h-6 ml-2">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=user`} />
-                            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-xs">
-                              我
-                            </AvatarFallback>
-                          </Avatar>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <div
-                          // 调整气泡框的背景色和透明度
-                          className="bg-white/50 backdrop-blur-sm rounded-3xl px-6 py-4 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          {/* Display AI-generated title */}
-                          <h3 className="text-base font-semibold text-gray-900 mb-2">
-                            {conv.title}
-                          </h3>
-                          {/* Display first message as preview */}
-                          <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
-                            {conv.first_message}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-
-      <BottomNav />
+      <BottomNav />      {/* Add keyframes for animations */}
+      <style>{`
+        @keyframes heartbeat {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes fadeUp {
+          0% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-20px); }
+        }
+      `}</style>
     </div>
   );
 };
 
 export default You;
+
