@@ -391,7 +391,7 @@ const You = () => {
           </div>
 
           <div 
-            onClick={() => navigate('/moments')}
+            onClick={() => navigate('/profile')}
             className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
           >
             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{

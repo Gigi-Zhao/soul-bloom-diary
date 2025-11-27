@@ -12,7 +12,6 @@ import Friends from "./pages/Friends";
 import Chat from "./pages/Chat";
 import CreateFriend from "./pages/CreateFriend";
 import RoleSetup from "./pages/RoleSetup";
-import Moments from "./pages/Moments";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -28,7 +27,6 @@ const CachedPages = () => {
     { path: '/journals', component: <Journals /> },
     { path: '/you', component: <You /> },
     { path: '/friends', component: <Friends /> },
-    { path: '/moments', component: <Moments /> },
     { path: '/profile', component: <Profile /> },
   ];
 

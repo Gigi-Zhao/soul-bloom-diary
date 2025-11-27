@@ -28,11 +28,6 @@ export function BottomNav() {
       path: "/friends",
     },
     {
-      label: "Moments",
-      icon: Sparkles,
-      path: "/moments",
-    },
-    {
       label: "Profile",
       icon: User,
       path: "/profile",
