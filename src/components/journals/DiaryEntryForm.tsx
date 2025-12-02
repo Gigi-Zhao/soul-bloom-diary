@@ -9,17 +9,17 @@ import { toast } from "sonner";
 /**
  * Mood display configuration
  */
-const MOOD_CONFIG: Record<string, { label: string; emoji: string; color: string; face: string }> = {
-  happy: { label: "开心", emoji: "😊", color: "bg-[#F4D35E]", face: "⋅⋅\n ͜" },
-  excited: { label: "兴奋", emoji: "😃", color: "bg-[#EE964B]", face: "⋅ ⋅\n ͜" },
-  content: { label: "满足", emoji: "😌", color: "bg-[#C8E7C8]", face: "˘ ˘\n ᵕ" },
-  calm: { label: "平静", emoji: "😐", color: "bg-[#A8A39D]", face: "⋅ ⋅\n o" },
-  tired: { label: "疲惫", emoji: "😑", color: "bg-[#9C8574]", face: "– –\n ⌇" },
-  sad: { label: "难过", emoji: "😢", color: "bg-[#6C8EAD]", face: "⋅ ⋅\n ︵" },
-  worried: { label: "担忧", emoji: "😰", color: "bg-[#7FA99B]", face: "– –\n ⌢" },
-  sleepy: { label: "困倦", emoji: "😴", color: "bg-[#8FB5D3]", face: "˘ ˘\n ︵" },
-  anxious: { label: "焦虑", emoji: "😔", color: "bg-[#C5A3D9]", face: "˘ ˘\n ︿" },
-  angry: { label: "生气", emoji: "😠", color: "bg-[#F4A5AE]", face: "ˇ ˇ\n ︿" },
+const MOOD_CONFIG: Record<string, { label: string; image: string; color: string }> = {
+  happy: { label: "开心", image: "/moods/开心.png", color: "bg-[#FFD166]" },
+  excited: { label: "期待", image: "/moods/期待.png", color: "bg-[#EF476F]" },
+  content: { label: "满足", image: "/moods/满足.png", color: "bg-[#C8E7C8]" },
+  calm: { label: "平静", image: "/moods/平静.png", color: "bg-[#A8A39D]" },
+  tired: { label: "累", image: "/moods/累.png", color: "bg-[#9C8574]" },
+  sad: { label: "悲伤", image: "/moods/悲伤.png", color: "bg-[#6C8EAD]" },
+  worried: { label: "担心", image: "/moods/担心.png", color: "bg-[#7FA99B]" },
+  confused: { label: "迷茫", image: "/moods/迷茫.png", color: "bg-[#8FB5D3]" },
+  anxious: { label: "心动", image: "/moods/心动.png", color: "bg-[#C5A3D9]" },
+  angry: { label: "生气", image: "/moods/生气.png", color: "bg-[#06FFA5]" },
 };
 
 interface DiaryEntryFormProps {
@@ -334,10 +334,12 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selected
 
           {/* Mood display */}
           <div className="flex flex-col items-center gap-4 mb-6">
-            <div className={`w-32 h-32 rounded-full ${moodConfig.color} flex items-center justify-center shadow-lg`}>
-              <span className="text-4xl font-medium text-black/80 whitespace-pre-line text-center leading-tight">
-                {moodConfig.face}
-              </span>
+            <div className="w-32 h-32 flex items-center justify-center">
+              <img 
+                src={moodConfig.image} 
+                alt={moodConfig.label}
+                className="w-32 h-32 object-contain"
+              />
             </div>
             <div className="bg-[#B8D4C8] px-6 py-1 rounded-md">
               <p className="text-xl font-medium">{moodConfig.label}</p>

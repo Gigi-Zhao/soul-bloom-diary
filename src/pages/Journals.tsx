@@ -12,13 +12,17 @@ import { DiaryEntryForm } from "@/components/journals/DiaryEntryForm";
 /**
  * Mood emoji mapping for different moods
  */
-const MOOD_EMOJIS: Record<string, { emoji: string; color: string }> = {
-  happy: { emoji: "😊", color: "bg-yellow-300" },
-  content: { emoji: "😌", color: "bg-purple-300" },
-  sad: { emoji: "😢", color: "bg-purple-400" },
-  sleepy: { emoji: "😴", color: "bg-green-200" },
-  excited: { emoji: "😃", color: "bg-orange-300" },
-  anxious: { emoji: "😰", color: "bg-blue-300" },
+const MOOD_EMOJIS: Record<string, { image: string; color: string }> = {
+  happy: { image: "/moods/开心.png", color: "bg-[#FFD166]" },
+  excited: { image: "/moods/期待.png", color: "bg-[#EF476F]" },
+  content: { image: "/moods/满足.png", color: "bg-[#C8E7C8]" },
+  calm: { image: "/moods/平静.png", color: "bg-[#A8A39D]" },
+  tired: { image: "/moods/累.png", color: "bg-[#9C8574]" },
+  sad: { image: "/moods/悲伤.png", color: "bg-[#6C8EAD]" },
+  worried: { image: "/moods/担心.png", color: "bg-[#7FA99B]" },
+  confused: { image: "/moods/迷茫.png", color: "bg-[#8FB5D3]" },
+  anxious: { image: "/moods/心动.png", color: "bg-[#C5A3D9]" },
+  angry: { image: "/moods/生气.png", color: "bg-[#06FFA5]" },
 };
 
 interface JournalEntry {
@@ -285,16 +289,20 @@ const Journals = () => {
                     aspect-square flex items-center justify-center text-sm
                     transition-all duration-200
                     ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''}
-                    ${moodConfig ? moodConfig.color : 'border border-border hover:bg-accent'}
+                    ${moodConfig ? '' : 'border border-border hover:bg-accent'}
                   `}
                   style={{
                     borderRadius: moodConfig 
-                      ? '45% 55% 52% 48% / 48% 50% 50% 52%'  // Irregular circle for mood days
-                      : '48% 52% 50% 50% / 52% 48% 52% 48%'  // Irregular circle for empty days
+                      ? '45% 55% 52% 48% / 48% 50% 50% 52%'
+                      : '48% 52% 50% 50% / 52% 48% 52% 48%'
                   }}
                 >
                   {moodConfig ? (
-                    <span className="text-2xl">{moodConfig.emoji}</span>
+                    <img 
+                      src={moodConfig.image} 
+                      alt="mood" 
+                      className="w-14 h-14 object-cover"
+                    />
                   ) : (
                     <span className="text-foreground">
                       {format(day, 'd')}
@@ -330,8 +338,16 @@ const Journals = () => {
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       {/* Mood Icon */}
-                      <div className={`w-10 h-10 rounded-full ${moodConfig?.color || 'bg-accent'} flex items-center justify-center flex-shrink-0`}>
-                        <span className="text-xl">{moodConfig?.emoji || '📝'}</span>
+                      <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+                        {moodConfig ? (
+                          <img 
+                            src={moodConfig.image} 
+                            alt="mood" 
+                            className="w-10 h-10 object-contain"
+                          />
+                        ) : (
+                          <span className="text-xl">📝</span>
+                        )}
                       </div>
 
                       {/* Entry Content */}
