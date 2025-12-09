@@ -192,38 +192,51 @@ const JournalDetail = () => {
         {/* Comments Section */}
         {comments.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold px-2">AI 伙伴的评论 ({comments.length})</h2>
-            {comments.map((comment) => (
-              <Card key={comment.id} className="bg-card/60 backdrop-blur">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <Avatar className="w-10 h-10 border-2 border-primary/20 flex-shrink-0">
-                      <AvatarImage src={comment.ai_role.avatar_url || undefined} />
-                      <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-sm">
-                        {comment.ai_role.name.slice(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{comment.ai_role.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(comment.created_at), 'HH:mm')}
-                        </span>
+            {/* Section label - left aligned */}
+            <div className="px-2">
+              <span className="text-sm text-muted-foreground/70">
+                💭 朋友们的回应
+              </span>
+            </div>
+
+            {/* All comments in one card */}
+            <Card className="bg-card/80 backdrop-blur">
+              <CardContent className="p-6 space-y-5">
+                {comments.map((comment, index) => (
+                  <div key={comment.id}>
+                    <div className="flex items-start gap-3">
+                      <Avatar className="w-10 h-10 border-2 border-primary/20 flex-shrink-0">
+                        <AvatarImage src={comment.ai_role.avatar_url || undefined} />
+                        <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white text-sm">
+                          {comment.ai_role.name.slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{comment.ai_role.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(comment.created_at), 'HH:mm')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground/90 leading-relaxed">
+                          {comment.content}
+                        </p>
                       </div>
-                      <p className="text-sm text-foreground/90 leading-relaxed">
-                        {comment.content}
-                      </p>
                     </div>
+                    {/* Divider between comments (not after last one) */}
+                    {index < comments.length - 1 && (
+                      <div className="mt-5 border-t border-border/20"></div>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                ))}
+              </CardContent>
+            </Card>
           </div>
         )}
 
         {comments.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-muted-foreground text-sm">暂无评论</p>
+            <p className="text-muted-foreground text-sm">✨ 朋友睡着了哦</p>
           </div>
         )}
       </div>
