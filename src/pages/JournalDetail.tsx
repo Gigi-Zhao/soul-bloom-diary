@@ -29,13 +29,17 @@ interface JournalComment {
   };
 }
 
-const MOOD_EMOJIS: Record<string, { emoji: string; color: string }> = {
-  happy: { emoji: "😊", color: "bg-yellow-300" },
-  content: { emoji: "😌", color: "bg-purple-300" },
-  sad: { emoji: "😢", color: "bg-purple-400" },
-  sleepy: { emoji: "😴", color: "bg-green-200" },
-  excited: { emoji: "😃", color: "bg-orange-300" },
-  anxious: { emoji: "😰", color: "bg-blue-300" },
+const MOOD_EMOJIS: Record<string, { image: string; color: string }> = {
+  happy: { image: "/moods/开心.png", color: "bg-[#FFD166]" },
+  excited: { image: "/moods/期待.png", color: "bg-[#EF476F]" },
+  content: { image: "/moods/满足.png", color: "bg-[#C8E7C8]" },
+  calm: { image: "/moods/平静.png", color: "bg-[#A8A39D]" },
+  tired: { image: "/moods/累.png", color: "bg-[#9C8574]" },
+  sad: { image: "/moods/悲伤.png", color: "bg-[#6C8EAD]" },
+  worried: { image: "/moods/担心.png", color: "bg-[#7FA99B]" },
+  confused: { image: "/moods/迷茫.png", color: "bg-[#8FB5D3]" },
+  anxious: { image: "/moods/心动.png", color: "bg-[#C5A3D9]" },
+  angry: { image: "/moods/生气.png", color: "bg-[#06FFA5]" },
 };
 
 /**
@@ -161,19 +165,27 @@ const JournalDetail = () => {
         <Card className="bg-card/80 backdrop-blur">
           <CardContent className="p-6 space-y-4">
             <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-full ${moodConfig?.color || 'bg-accent'} flex items-center justify-center`}>
-                <span className="text-2xl">{moodConfig?.emoji || '📝'}</span>
+              <div className="w-12 h-12 flex items-center justify-center flex-shrink-0">
+                {moodConfig?.image ? (
+                  <img src={moodConfig.image} alt="mood" className="w-12 h-12 object-contain" />
+                ) : (
+                  <span className="text-2xl">📝</span>
+                )}
               </div>
-              <div>
-                <div className="text-sm font-medium">我的心情</div>
-                <div className="text-xs text-muted-foreground">
-                  {entry.time || format(new Date(entry.created_at), 'HH:mm')}
+              <div className="space-y-0.5">
+                <div className="text-sm text-muted-foreground">
+                  {entry.time || format(new Date(entry.created_at), 'hh:mm')} {format(new Date(entry.created_at), 'a').toUpperCase()}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  周{['日', '一', '二', '三', '四', '五', '六'][new Date(entry.created_at).getDay()]}
                 </div>
               </div>
             </div>
-            <p className="text-foreground whitespace-pre-wrap leading-relaxed">
-              {entry.content}
-            </p>
+            <div className="ml-[60px]">
+              <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+                {entry.content}
+              </p>
+            </div>
           </CardContent>
         </Card>
 

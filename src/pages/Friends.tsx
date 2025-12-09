@@ -1,29 +1,21 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { BottomNav } from "@/components/ui/bottom-nav";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, MessageCircle, Sparkles, Plus, Trash2 } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 interface AIRole {
   id: string;
   name: string;
   description: string;
   avatar_url: string;
+  user_id: string;
+  is_system?: boolean;
 }
+
+type TabType = 'friends' | 'created' | 'plaza';
 
 /**
  * Friends Page Component
@@ -32,16 +24,11 @@ interface AIRole {
 const Friends = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [aiRoles, setAiRoles] = useState<AIRole[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [allRoles, setAllRoles] = useState<AIRole[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [roleToDelete, setRoleToDelete] = useState<AIRole | null>(null);
-  const [swipedRoleId, setSwipedRoleId] = useState<string | null>(null);
-  
-  // Touch handling for swipe
-  const touchStartX = useRef<number>(0);
-  const touchEndX = useRef<number>(0);
-  const [swipeOffset, setSwipeOffset] = useState<{ [key: string]: number }>({});
+  const [activeTab, setActiveTab] = useState<TabType>('friends');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchAIRoles = async () => {
@@ -53,10 +40,12 @@ const Friends = () => {
         return;
       }
 
+      setCurrentUserId(user.id);
+
+      // 获取所有角色（用户创建的 + 系统预设的）
       const { data, error } = await supabase
         .from('ai_roles')
-        .select('id, name, description, avatar_url')
-        .eq('user_id', user.id)
+        .select('id, name, description, avatar_url, user_id')
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -67,8 +56,8 @@ const Friends = () => {
           variant: "destructive",
         });
       } else {
-        console.log(`[Friends] Loaded ${data?.length || 0} AI roles for user`);
-        setAiRoles(data || []);
+        console.log(`[Friends] Loaded ${data?.length || 0} AI roles`);
+        setAllRoles(data || []);
       }
       setLoading(false);
     };
@@ -76,234 +65,136 @@ const Friends = () => {
     fetchAIRoles();
   }, [toast]);
 
-  const handleTouchStart = (e: React.TouchEvent, roleId: string) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
+  // 过滤不同类别的角色
+  const friendsRoles = allRoles; // 全部角色
+  const createdRoles = allRoles.filter(role => role.user_id === currentUserId);
+  const plazaRoles = allRoles.filter(role => role.user_id !== currentUserId); // 系统预设或其他用户的角色
 
-  const handleTouchMove = (e: React.TouchEvent, roleId: string) => {
-    touchEndX.current = e.touches[0].clientX;
-    const offset = touchStartX.current - touchEndX.current;
-    
-    // Only allow left swipe (positive offset)
-    if (offset > 0 && offset <= 100) {
-      setSwipeOffset(prev => ({ ...prev, [roleId]: offset }));
+  const getCurrentRoles = () => {
+    switch (activeTab) {
+      case 'friends':
+        return friendsRoles;
+      case 'created':
+        return createdRoles;
+      case 'plaza':
+        return plazaRoles;
+      default:
+        return [];
     }
   };
 
-  const handleTouchEnd = (roleId: string) => {
-    const offset = touchStartX.current - touchEndX.current;
-    
-    // If swiped more than 50px to the left, show delete button
-    if (offset > 50) {
-      setSwipeOffset(prev => ({ ...prev, [roleId]: 100 }));
-      setSwipedRoleId(roleId);
-    } else {
-      // Reset swipe
-      setSwipeOffset(prev => ({ ...prev, [roleId]: 0 }));
-      setSwipedRoleId(null);
-    }
-  };
+  // 根据搜索关键词过滤角色
+  const filteredRoles = getCurrentRoles().filter(role => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return role.name.toLowerCase().includes(query) || 
+           role.description?.toLowerCase().includes(query);
+  });
 
-  const handleDeleteClick = (role: AIRole, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRoleToDelete(role);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!roleToDelete) return;
-
-    try {
-      // Delete the AI role - this will cascade to conversations and messages
-      const { error } = await supabase
-        .from('ai_roles')
-        .delete()
-        .eq('id', roleToDelete.id);
-
-      if (error) throw error;
-
-      // Update local state
-      setAiRoles(prev => prev.filter(role => role.id !== roleToDelete.id));
-      
-      // Reset swipe state
-      setSwipeOffset(prev => {
-        const newOffset = { ...prev };
-        delete newOffset[roleToDelete.id];
-        return newOffset;
-      });
-      setSwipedRoleId(null);
-
-      toast({
-        title: "删除成功",
-        description: `已删除 ${roleToDelete.name}`,
-      });
-    } catch (error) {
-      console.error('Error deleting AI role:', error);
-      toast({
-        title: "删除失败",
-        description: error instanceof Error ? error.message : "未知错误",
-        variant: "destructive",
-      });
-    } finally {
-      setDeleteDialogOpen(false);
-      setRoleToDelete(null);
-    }
-  };
-
-  const handleCardClick = (roleId: string) => {
-    // Don't navigate if the card is swiped
-    if (swipedRoleId !== roleId) {
-      navigate(`/chat/${roleId}`);
-    } else {
-      // Reset swipe instead
-      setSwipeOffset(prev => ({ ...prev, [roleId]: 0 }));
-      setSwipedRoleId(null);
-    }
-  };
+  const currentRoles = filteredRoles;
 
   return (
-    <div className="min-h-screen pb-24 pt-8 px-4 bg-gradient-to-b from-background to-muted/30">
+    <div className="min-h-screen pb-24 pt-6 px-4 bg-gradient-to-b from-background to-muted/20">
       {/* Header */}
-      <header className="max-w-md mx-auto mb-8 animate-in fade-in slide-in-from-top-4 duration-700">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-[0_4px_16px_hsl(var(--primary)/0.3)]">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">AI 伙伴</h1>
-            <p className="text-sm text-muted-foreground">与智能伙伴聊天，获得支持与指引</p>
-          </div>
-        </div>
-      </header>
+      <div className="max-w-md mx-auto mb-6">
+        <h1 className="text-xl font-medium text-foreground">我一直都在</h1>
+      </div>
 
-      {/* Main content */}
-      <div className="max-w-md mx-auto space-y-4">
+      {/* Search Bar */}
+      <div className="max-w-md mx-auto mb-6">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="搜索AI好友..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-muted/50 rounded-full text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-pink-200"
+            />
+          </div>
+          <button
+            onClick={() => navigate('/create-friend')}
+            className="w-8 h-8 flex-shrink-0 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+          >
+            <Plus className="w-5 h-5 text-foreground" />
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="max-w-md mx-auto mb-6">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('friends')}
+            className={`px-4 py-2 rounded-full text-sm transition-colors ${
+              activeTab === 'friends'
+                ? 'bg-pink-100 text-pink-600'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            好友 {friendsRoles.length}
+          </button>
+          <button
+            onClick={() => setActiveTab('created')}
+            className={`px-4 py-2 rounded-full text-sm transition-colors ${
+              activeTab === 'created'
+                ? 'bg-pink-100 text-pink-600'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            创建 {createdRoles.length}
+          </button>
+          <button
+            onClick={() => setActiveTab('plaza')}
+            className={`px-4 py-2 rounded-full text-sm transition-colors ${
+              activeTab === 'plaza'
+                ? 'bg-pink-100 text-pink-600'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            广场 {plazaRoles.length}
+          </button>
+        </div>
+      </div>
+
+      {/* Role List */}
+      <div className="max-w-md mx-auto">
         {loading ? (
           <div className="text-center py-8">
             <p className="text-muted-foreground">加载中...</p>
           </div>
+        ) : currentRoles.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">暂无角色</p>
+          </div>
         ) : (
-          <>
-            {/* Create new AI friend button */}
-            <Card 
-              className="transition-all duration-300 hover:shadow-[0_4px_16px_hsl(var(--primary)/0.2)] cursor-pointer bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20"
-              onClick={() => navigate('/create-friend')}
-            >
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center">
-                    <Plus className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <CardTitle className="text-base font-semibold">创建你的专属AI伙伴</CardTitle>
-                    <p className="text-sm text-muted-foreground">点击开始创建</p>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-
-            {/* AI Companions list */}
-            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-              <h2 className="text-lg font-semibold text-foreground">我的 AI 伙伴</h2>
-              
-              {aiRoles.map((role, index) => (
-                <div key={role.id} className="relative overflow-hidden">
-                  {/* Main Card with Swipe */}
-                  <div
-                    className="relative transition-transform duration-300 ease-out"
-                    style={{
-                      transform: `translateX(-${swipeOffset[role.id] || 0}px)`,
-                    }}
-                    onTouchStart={(e) => handleTouchStart(e, role.id)}
-                    onTouchMove={(e) => handleTouchMove(e, role.id)}
-                    onTouchEnd={() => handleTouchEnd(role.id)}
-                  >
-                    <Card 
-                      className="transition-all duration-300 hover:shadow-[0_4px_16px_hsl(var(--primary)/0.2)] cursor-pointer"
-                      onClick={() => handleCardClick(role.id)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-12 h-12 border-2 border-primary/20">
-                            <AvatarImage src={role.avatar_url} />
-                            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
-                              {role.name.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <CardTitle className="text-base font-semibold">{role.name}</CardTitle>
-                            <p className="text-sm text-muted-foreground">{role.description}</p>
-                          </div>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            className="hover:bg-primary/10 hover:text-primary transition-all duration-300"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/chat/${role.id}`);
-                            }}
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                  </div>
-
-                  {/* Delete Button (revealed when swiped) */}
-                  <div
-                    className="absolute top-0 right-0 h-full flex items-center justify-center bg-destructive w-[100px] rounded-r-lg"
-                    style={{
-                      opacity: (swipeOffset[role.id] || 0) / 100,
-                    }}
-                  >
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive-foreground hover:bg-destructive-foreground/20"
-                      onClick={(e) => handleDeleteClick(role, e)}
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Info card */}
-            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-              <Card className="bg-gradient-to-br from-accent/20 to-primary/20 border-accent/30">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-center text-muted-foreground">
-                    与AI伙伴聊天，获得专业的情感支持和生活指导
+          currentRoles.map((role, index) => (
+            <div key={role.id}>
+              <div
+                onClick={() => navigate(`/chat/${role.id}`)}
+                className="flex items-start gap-3 py-4 cursor-pointer hover:bg-muted/30 transition-colors"
+              >
+                <Avatar className="w-12 h-12 flex-shrink-0">
+                  <AvatarImage src={role.avatar_url} alt={role.name} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white">
+                    {role.name.slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-medium text-foreground mb-0.5">{role.name}</h3>
+                  <p className="text-sm text-muted-foreground line-clamp-1">
+                    {role.description || '点击开始对话'}
                   </p>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+              {index < currentRoles.length - 1 && (
+                <div className="ml-[60px] border-b border-gray-200/50"></div>
+              )}
             </div>
-          </>
+          ))
         )}
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>
-              是否要永久删除你的朋友 {roleToDelete?.name}？此操作将删除所有与该角色相关的对话记录，且无法恢复。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>否</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              是
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <BottomNav />
     </div>
