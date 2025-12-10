@@ -1,9 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, History, MessageSquarePlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,6 +62,7 @@ const Chat = () => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isNewConversation, setIsNewConversation] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdsRef = useRef<Set<string>>(new Set());
   const streamingMessageRef = useRef<string>("");
@@ -405,7 +422,61 @@ ${conversationContext}
       });
     }
     // 立即导航，不等待标题生成完成
-    navigate("/you");
+    navigate("/friends");
+  };
+
+  const handleViewHistory = () => {
+    navigate(`/conversation-history/${roleId}`);
+  };
+
+  const handleNewConversation = () => {
+    // 重置状态，开始新对话
+    setConversationId(null);
+    setMessages([]);
+    setIsNewConversation(true);
+    conversationCreatedRef.current = false;
+    hasGeneratedTitleRef.current = false;
+    hasNewMessagesRef.current = false;
+    messageIdsRef.current.clear();
+    
+    toast({
+      title: "新对话",
+      description: "已开始新的对话",
+    });
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!conversationId) {
+      toast({
+        title: "错误",
+        description: "当前没有对话可删除",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from('conversations')
+      .delete()
+      .eq('id', conversationId);
+
+    if (error) {
+      console.error('Error deleting conversation:', error);
+      toast({
+        title: "删除失败",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "删除成功",
+        description: "对话已删除",
+      });
+      // 导航回朋友页面
+      navigate("/friends");
+    }
+
+    setDeleteDialogOpen(false);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -725,10 +796,39 @@ ${conversationContext}
             {aiRole.name.slice(0, 2)}
           </AvatarFallback>
         </Avatar>
-        <div>
+        <div className="flex-1">
           <h1 className="font-semibold text-foreground">{aiRole.name}</h1>
           <p className="text-xs text-muted-foreground">{aiRole.description}</p>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hover:bg-primary/10"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={handleViewHistory}>
+              <History className="w-4 h-4 mr-2" />
+              查看历史对话
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleNewConversation}>
+              <MessageSquarePlus className="w-4 h-4 mr-2" />
+              开始新对话
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setDeleteDialogOpen(true)}
+              className="text-destructive focus:text-destructive"
+              disabled={!conversationId}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              删除当前对话
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {/* Messages */}
@@ -800,6 +900,27 @@ ${conversationContext}
           <Send className="w-5 h-5" />
         </Button>
       </form>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除当前对话吗？此操作无法撤销，所有聊天记录将被永久删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConversation}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 流式内容已直接更新到消息列表中的临时气泡 */}
     </div>

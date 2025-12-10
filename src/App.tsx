@@ -10,6 +10,7 @@ import JournalDetail from "./pages/JournalDetail";
 import You from "./pages/You";
 import Friends from "./pages/Friends";
 import Chat from "./pages/Chat";
+import ConversationHistory from "./pages/ConversationHistory";
 import CreateFriend from "./pages/CreateFriend";
 import RoleSetup from "./pages/RoleSetup";
 import Profile from "./pages/Profile";
@@ -41,6 +42,7 @@ const CachedPages = () => {
         <Route path="/" element={<Splash />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/chat/:roleId" element={<Chat />} />
+        <Route path="/conversation-history/:roleId" element={<ConversationHistory />} />
         <Route path="/create-friend" element={<CreateFriend />} />
         <Route path="/create-friend/setup" element={<RoleSetup />} />
         <Route path="*" element={<NotFound />} />
