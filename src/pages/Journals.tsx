@@ -255,10 +255,18 @@ const Journals = () => {
             <ChevronLeft className="w-6 h-6" />
           </button>
           
-          <div className="text-center">
-            <div className="text-2xl font-bold">{format(currentMonth, 'yyyy')}</div>
-            <div className="inline-block px-4 py-1 bg-accent/30 rounded-full text-sm">
-              {format(currentMonth, 'M月')}
+          <div className="text-center flex flex-col items-center gap-1">
+            <div className="text-base font-normal text-foreground mt-10">{format(currentMonth, 'yyyy')}</div>
+            <div className="relative inline-block px-8 py-1.5 -mt-1">
+              <img 
+                src="/date_bg.png" 
+                alt="" 
+                className="absolute w-full h-full object-cover opacity-50"
+                style={{ zIndex: 0, top: '20%', left: 0 }}
+              />
+              <span className="relative text-lg font-medium text-foreground" style={{ zIndex: 1 }}>
+                {['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'][currentMonth.getMonth()]}
+              </span>
             </div>
           </div>
 
