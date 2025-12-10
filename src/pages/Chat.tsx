@@ -260,7 +260,7 @@ ${conversationContext}
         const conversationIdParam = searchParams.get('conversation');
         
         if (conversationIdParam) {
-          // Load existing conversation
+          // Load existing conversation by ID
           const { data: existingConv, error: convError } = await supabase
             .from('conversations')
             .select('*')
@@ -284,26 +284,45 @@ ${conversationContext}
           setIsNewConversation(false);
           conversationCreatedRef.current = true;
         } else {
-          // New conversation - don't create in DB yet, wait for first message
-          setIsNewConversation(true);
-          setConversationId(null);
-          
-          // 检查是否从气泡点击带来了初始AI消息
-          const navState = location.state as { initialAIMessage?: string } | null;
-          if (navState?.initialAIMessage) {
-            console.log('[Chat Init] 检测到初始AI消息（来自气泡点击）:', navState.initialAIMessage);
-            pendingInitialAIMessageRef.current = navState.initialAIMessage;
+          // No conversation ID in URL - check if there's an existing conversation with this role
+          const { data: existingConversations, error: convError } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('ai_role_id', roleId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (existingConversations && !convError) {
+            // Found existing conversation - load it
+            console.log('[Chat Init] 找到现有对话，加载历史记录');
+            setConversationId(existingConversations.id);
+            setIsNewConversation(false);
+            conversationCreatedRef.current = true;
+          } else {
+            // No existing conversation - prepare for new one
+            console.log('[Chat Init] 无现有对话，准备创建新对话');
+            setIsNewConversation(true);
+            setConversationId(null);
             
-            // 在UI中显示临时的AI消息（使用临时ID，conversation_id为空字符串）
-            const tempMsg: Message = {
-              id: `temp-initial-${Date.now()}`,
-              conversation_id: '', // 暂时为空，等创建对话后更新
-              sender_role: 'ai',
-              content: navState.initialAIMessage,
-              created_at: new Date().toISOString(),
-            };
-            setMessages([tempMsg]);
-            setTimeout(scrollToBottom, 100);
+            // 检查是否从气泡点击带来了初始AI消息
+            const navState = location.state as { initialAIMessage?: string } | null;
+            if (navState?.initialAIMessage) {
+              console.log('[Chat Init] 检测到初始AI消息（来自气泡点击）:', navState.initialAIMessage);
+              pendingInitialAIMessageRef.current = navState.initialAIMessage;
+              
+              // 在UI中显示临时的AI消息（使用临时ID，conversation_id为空字符串）
+              const tempMsg: Message = {
+                id: `temp-initial-${Date.now()}`,
+                conversation_id: '', // 暂时为空，等创建对话后更新
+                sender_role: 'ai',
+                content: navState.initialAIMessage,
+                created_at: new Date().toISOString(),
+              };
+              setMessages([tempMsg]);
+              setTimeout(scrollToBottom, 100);
+            }
           }
         }
       }

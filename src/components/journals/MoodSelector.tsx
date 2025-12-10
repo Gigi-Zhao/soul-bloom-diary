@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useState, useEffect } from "react";
 
 /**
@@ -41,61 +41,63 @@ export const MoodSelector = ({ open, onClose, onSelectMood }: MoodSelectorProps)
   }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-[#EDE8DC] border-none p-0 overflow-hidden h-screen max-h-screen">
-        <div className="relative w-full h-full flex items-center justify-center">
-          {/* Central prompt text */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center z-20 pointer-events-none">
-            <div className="bg-[#B8D4C8] px-6 py-2 rounded-md shadow-lg">
-              <p className="text-lg font-medium text-foreground whitespace-nowrap">
-                亲，今天过的怎么样？
-              </p>
+    <DialogPrimitive.Root open={open} onOpenChange={onClose}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Content className="fixed inset-0 z-50 w-screen h-screen bg-gradient-to-b from-[hsl(var(--background))] to-[hsl(var(--muted))]">
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Central prompt text */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center z-20 pointer-events-none">
+              <div className="bg-[#B8D4C8] px-6 py-2 rounded-md shadow-lg">
+                <p className="text-lg font-medium text-foreground whitespace-nowrap">
+                  亲，今天过的怎么样？
+                </p>
+              </div>
             </div>
+
+            {/* Rotating mood wheel */}
+            <div 
+              className={`relative w-[400px] h-[400px] ${isSpinning ? 'animate-spin-slow' : ''}`}
+              style={{
+                animation: isSpinning ? 'spin 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none'
+              }}
+            >
+              {MOODS.map((mood, index) => {
+                const angle = (index * 360) / MOODS.length;
+                const radius = 160;
+                const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
+                const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+
+                return (
+                  <button
+                    key={mood.id}
+                    onClick={() => onSelectMood(mood.id)}
+                    className="absolute w-24 h-24 flex items-center justify-center transition-transform hover:scale-110"
+                    style={{
+                      left: '50%',
+                      top: '50%',
+                      transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
+                    }}
+                  >
+                    <img 
+                      src={mood.image} 
+                      alt={mood.name}
+                      className="w-24 h-24 object-contain"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="absolute bottom-12 left-1/2 -translate-x-1/2 text-4xl text-[#8B7355] hover:opacity-70 transition-opacity"
+            >
+              ×
+            </button>
           </div>
-
-          {/* Rotating mood wheel */}
-          <div 
-            className={`relative w-[400px] h-[400px] ${isSpinning ? 'animate-spin-slow' : ''}`}
-            style={{
-              animation: isSpinning ? 'spin 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none'
-            }}
-          >
-            {MOODS.map((mood, index) => {
-              const angle = (index * 360) / MOODS.length;
-              const radius = 160;
-              const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
-              const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
-
-              return (
-                <button
-                  key={mood.id}
-                  onClick={() => onSelectMood(mood.id)}
-                  className="absolute w-24 h-24 flex items-center justify-center transition-transform hover:scale-110"
-                  style={{
-                    left: '50%',
-                    top: '50%',
-                    transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
-                  }}
-                >
-                  <img 
-                    src={mood.image} 
-                    alt={mood.name}
-                    className="w-24 h-24 object-contain"
-                  />
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-white border-4 border-black flex items-center justify-center text-3xl hover:scale-110 transition-transform"
-          >
-            ✕
-          </button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 };

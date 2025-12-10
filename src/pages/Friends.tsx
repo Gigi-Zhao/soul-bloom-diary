@@ -13,6 +13,7 @@ interface AIRole {
   avatar_url: string;
   user_id: string;
   is_system?: boolean;
+  last_message?: string;
 }
 
 type TabType = 'friends' | 'created' | 'plaza';
@@ -55,10 +56,56 @@ const Friends = () => {
           description: error.message,
           variant: "destructive",
         });
-      } else {
-        console.log(`[Friends] Loaded ${data?.length || 0} AI roles`);
-        setAllRoles(data || []);
+        setLoading(false);
+        return;
       }
+
+      // 为每个角色获取最后一条消息
+      const rolesWithLastMessage = await Promise.all(
+        (data || []).map(async (role) => {
+          // 首先获取该角色的对话ID
+          const { data: convData, error: convError } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('ai_role_id', role.id)
+            .eq('user_id', user.id)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (convError) {
+            console.error(`[Friends] Error fetching conversation for role ${role.id}:`, convError);
+          }
+
+          let lastMessage = null;
+
+          // 如果找到对话，获取最后一条AI消息
+          if (convData) {
+            const { data: messages, error: msgError } = await supabase
+              .from('messages')
+              .select('content')
+              .eq('conversation_id', convData.id)
+              .eq('sender_role', 'ai')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (msgError) {
+              console.error(`[Friends] Error fetching messages for conversation ${convData.id}:`, msgError);
+            }
+
+            lastMessage = messages ? messages.content : null;
+          }
+
+          return {
+            ...role,
+            last_message: lastMessage
+          };
+        })
+      );
+
+      console.log(`[Friends] Loaded ${rolesWithLastMessage?.length || 0} AI roles with last messages`);
+      setAllRoles(rolesWithLastMessage || []);
       setLoading(false);
     };
 
@@ -184,7 +231,7 @@ const Friends = () => {
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base font-medium text-foreground mb-0.5">{role.name}</h3>
                   <p className="text-sm text-muted-foreground line-clamp-1">
-                    {role.description || '点击开始对话'}
+                    {role.last_message || role.description || '点击开始对话'}
                   </p>
                 </div>
               </div>
