@@ -2,7 +2,7 @@ import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from "date-fns";
@@ -236,25 +236,68 @@ const Journals = () => {
   const displayDateKey = format(selectedDate, 'yyyy-MM-dd');
   const selectedEntries = entriesByDate.get(displayDateKey) || [];
 
+  // Touch and swipe gesture handling
+  const touchStartY = useRef<number>(0);
+  const touchEndY = useRef<number>(0);
+  const lastWheelTime = useRef<number>(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = () => {
+    const deltaY = touchStartY.current - touchEndY.current;
+    const minSwipeDistance = 30; // Reduced from 50 to 30 for easier swiping
+
+    if (Math.abs(deltaY) > minSwipeDistance) {
+      if (deltaY > 0) {
+        // Swipe up -> Next month
+        handleNextMonth();
+      } else {
+        // Swipe down -> Previous month
+        handlePreviousMonth();
+      }
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    // Reduced throttle from 500ms to 300ms for more responsive scrolling
+    if (now - lastWheelTime.current < 300) return;
+    
+    lastWheelTime.current = now;
+    
+    // Use smaller threshold for more sensitive detection
+    if (Math.abs(e.deltaY) > 10) {
+      if (e.deltaY > 0) {
+        // Scroll down -> Next month
+        handleNextMonth();
+      } else {
+        // Scroll up -> Previous month
+        handlePreviousMonth();
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen pb-24 bg-gradient-to-b from-background to-muted/20">
       {/* Top Section: Mood Calendar */}
-      <div className="max-w-md mx-auto px-4 pt-8">
+      <div 
+        className="max-w-md mx-auto px-4 pt-0"
+        onWheel={handleWheel}
+      >
         {/* Month Navigation Header */}
         <div 
-          className="flex items-center justify-between mb-6 cursor-pointer"
+          className="flex items-center justify-center mb-6 cursor-pointer select-none"
           onClick={() => setIsCalendarCollapsed(!isCalendarCollapsed)}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePreviousMonth();
-            }}
-            className="p-2 hover:bg-accent rounded-full transition-colors"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          
           <div className="text-center flex flex-col items-center gap-1">
             <div className="text-base font-normal text-foreground mt-10">{format(currentMonth, 'yyyy')}</div>
             <div className="relative inline-block px-8 py-1.5 -mt-1">
@@ -269,16 +312,6 @@ const Journals = () => {
               </span>
             </div>
           </div>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNextMonth();
-            }}
-            className="p-2 hover:bg-accent rounded-full transition-colors"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </button>
         </div>
 
         {/* Collapsible Calendar Grid */}
