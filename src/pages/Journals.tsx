@@ -13,16 +13,16 @@ import { DiaryEntryForm } from "@/components/journals/DiaryEntryForm";
  * Mood emoji mapping for different moods
  */
 const MOOD_EMOJIS: Record<string, { image: string; color: string }> = {
-  happy: { image: "/moods/开心.png", color: "bg-[#FFD166]" },
-  excited: { image: "/moods/期待.png", color: "bg-[#EF476F]" },
-  content: { image: "/moods/满足.png", color: "bg-[#C8E7C8]" },
-  calm: { image: "/moods/平静.png", color: "bg-[#A8A39D]" },
-  tired: { image: "/moods/累.png", color: "bg-[#9C8574]" },
-  sad: { image: "/moods/悲伤.png", color: "bg-[#6C8EAD]" },
-  worried: { image: "/moods/担心.png", color: "bg-[#7FA99B]" },
-  confused: { image: "/moods/迷茫.png", color: "bg-[#8FB5D3]" },
-  anxious: { image: "/moods/心动.png", color: "bg-[#C5A3D9]" },
-  angry: { image: "/moods/生气.png", color: "bg-[#06FFA5]" },
+  happy: { image: "/moods/happy.png", color: "bg-[#FFD166]" },
+  excited: { image: "/moods/excited.png", color: "bg-[#EF476F]" },
+  content: { image: "/moods/content.png", color: "bg-[#C8E7C8]" },
+  calm: { image: "/moods/calm.png", color: "bg-[#A8A39D]" },
+  tired: { image: "/moods/tired.png", color: "bg-[#9C8574]" },
+  sad: { image: "/moods/sad.png", color: "bg-[#6C8EAD]" },
+  worried: { image: "/moods/worried.png", color: "bg-[#7FA99B]" },
+  confused: { image: "/moods/confused.png", color: "bg-[#8FB5D3]" },
+  anxious: { image: "/moods/anxious.png", color: "bg-[#C5A3D9]" },
+  angry: { image: "/moods/angry.png", color: "bg-[#06FFA5]" },
 };
 
 interface JournalEntry {
@@ -191,11 +191,17 @@ const Journals = () => {
    * Navigate to next month
    */
   const handleNextMonth = () => {
+    const today = new Date();
     const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+    
+    // Prevent navigating to future months
+    if (newMonth > today) {
+      return;
+    }
+    
     setCurrentMonth(newMonth);
     
     // If navigating to current month, select today; otherwise select last day of that month
-    const today = new Date();
     const isCurrentMonth = format(newMonth, 'yyyy-MM') === format(today, 'yyyy-MM');
     
     if (isCurrentMonth) {
@@ -243,6 +249,7 @@ const Journals = () => {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
+    touchEndY.current = e.touches[0].clientY;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -251,33 +258,48 @@ const Journals = () => {
 
   const handleTouchEnd = () => {
     const deltaY = touchStartY.current - touchEndY.current;
-    const minSwipeDistance = 30; // Reduced from 50 to 30 for easier swiping
+    const minSwipeDistance = 30;
 
     if (Math.abs(deltaY) > minSwipeDistance) {
       if (deltaY > 0) {
-        // Swipe up -> Next month
         handleNextMonth();
       } else {
-        // Swipe down -> Previous month
         handlePreviousMonth();
       }
     }
   };
 
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = calendarRef.current;
+    if (!element) return;
+
+    const preventDefault = (e: Event) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    // Add non-passive event listeners to prevent default scrolling
+    element.addEventListener('wheel', preventDefault, { passive: false });
+    element.addEventListener('touchmove', preventDefault, { passive: false });
+
+    return () => {
+      element.removeEventListener('wheel', preventDefault);
+      element.removeEventListener('touchmove', preventDefault);
+    };
+  }, []);
+
   const handleWheel = (e: React.WheelEvent) => {
     const now = Date.now();
-    // Reduced throttle from 500ms to 300ms for more responsive scrolling
-    if (now - lastWheelTime.current < 300) return;
-    
+    if (now - lastWheelTime.current < 200) return;
     lastWheelTime.current = now;
     
-    // Use smaller threshold for more sensitive detection
-    if (Math.abs(e.deltaY) > 10) {
+    if (Math.abs(e.deltaY) > 7) {
       if (e.deltaY > 0) {
-        // Scroll down -> Next month
         handleNextMonth();
       } else {
-        // Scroll up -> Previous month
         handlePreviousMonth();
       }
     }
@@ -287,16 +309,18 @@ const Journals = () => {
     <div className="min-h-screen pb-24 bg-gradient-to-b from-background to-muted/20">
       {/* Top Section: Mood Calendar */}
       <div 
+        ref={calendarRef}
         className="max-w-md mx-auto px-4 pt-0"
+        style={{ touchAction: 'none' }}
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         {/* Month Navigation Header */}
         <div 
           className="flex items-center justify-center mb-6 cursor-pointer select-none"
           onClick={() => setIsCalendarCollapsed(!isCalendarCollapsed)}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
         >
           <div className="text-center flex flex-col items-center gap-1">
             <div className="text-base font-normal text-foreground mt-10">{format(currentMonth, 'yyyy')}</div>
