@@ -30,16 +30,16 @@ interface JournalComment {
 }
 
 const MOOD_EMOJIS: Record<string, { image: string; color: string }> = {
-  happy: { image: "/moods/开心.png", color: "bg-[#FFD166]" },
-  excited: { image: "/moods/期待.png", color: "bg-[#EF476F]" },
-  content: { image: "/moods/满足.png", color: "bg-[#C8E7C8]" },
-  calm: { image: "/moods/平静.png", color: "bg-[#A8A39D]" },
-  tired: { image: "/moods/累.png", color: "bg-[#9C8574]" },
-  sad: { image: "/moods/悲伤.png", color: "bg-[#6C8EAD]" },
-  worried: { image: "/moods/担心.png", color: "bg-[#7FA99B]" },
-  confused: { image: "/moods/迷茫.png", color: "bg-[#8FB5D3]" },
-  anxious: { image: "/moods/心动.png", color: "bg-[#C5A3D9]" },
-  angry: { image: "/moods/生气.png", color: "bg-[#06FFA5]" },
+  happy: { image: "/moods/happy.png", color: "bg-[#FFD166]" },
+  excited: { image: "/moods/excited.png", color: "bg-[#EF476F]" },
+  content: { image: "/moods/content.png", color: "bg-[#C8E7C8]" },
+  calm: { image: "/moods/calm.png", color: "bg-[#A8A39D]" },
+  tired: { image: "/moods/tired.png", color: "bg-[#9C8574]" },
+  sad: { image: "/moods/sad.png", color: "bg-[#6C8EAD]" },
+  worried: { image: "/moods/worried.png", color: "bg-[#7FA99B]" },
+  confused: { image: "/moods/confused.png", color: "bg-[#8FB5D3]" },
+  anxious: { image: "/moods/anxious.png", color: "bg-[#C5A3D9]" },
+  angry: { image: "/moods/angry.png", color: "bg-[#06FFA5]" },
 };
 
 /**

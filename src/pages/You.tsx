@@ -196,38 +196,54 @@ const You = () => {
           return;
         }
 
-        // Fetch AI role
-        const { data: roleData, error: roleError } = await supabase
+        // Try to find '小兵' first
+        const { data: defaultRole, error: defaultRoleError } = await supabase
           .from('ai_roles')
           .select('id, name, avatar_url, catchphrase')
-          .eq('user_id', user.id)
+          .eq('name', '小兵')
           .limit(1)
           .maybeSingle();
 
-        if (roleError) throw roleError;
-        
-        if (!roleData) {
-          const { data: firstRole } = await supabase
+        if (defaultRoleError) throw defaultRoleError;
+
+        if (defaultRole) {
+          setAiRole(defaultRole);
+          await generateBubbleMessage(defaultRole.name);
+        } else {
+          // Fallback to user's first role if '小兵' not found
+          const { data: roleData, error: roleError } = await supabase
             .from('ai_roles')
             .select('id, name, avatar_url, catchphrase')
+            .eq('user_id', user.id)
             .limit(1)
             .maybeSingle();
+
+          if (roleError) throw roleError;
           
-          if (firstRole) {
-            setAiRole(firstRole);
-            await generateBubbleMessage(firstRole.name);
+          if (roleData) {
+            setAiRole(roleData);
+            await generateBubbleMessage(roleData.name);
           } else {
-            toast({
-              title: "未找到角色",
-              description: "请先创建一个AI角色",
-              variant: "destructive",
-            });
-            navigate("/friends");
-            return;
+            // Fallback to any first role
+            const { data: firstRole } = await supabase
+              .from('ai_roles')
+              .select('id, name, avatar_url, catchphrase')
+              .limit(1)
+              .maybeSingle();
+            
+            if (firstRole) {
+              setAiRole(firstRole);
+              await generateBubbleMessage(firstRole.name);
+            } else {
+              toast({
+                title: "未找到角色",
+                description: "请先创建一个AI角色",
+                variant: "destructive",
+              });
+              navigate("/friends");
+              return;
+            }
           }
-        } else {
-          setAiRole(roleData);
-          await generateBubbleMessage(roleData.name);
         }
       } catch (error) {
         console.error('Error fetching data:', error);

@@ -422,7 +422,13 @@ ${conversationContext}
       });
     }
     // 立即导航，不等待标题生成完成
-    navigate("/friends");
+    // 检查是否从 You 页面进入（通过 location.state）
+    const navState = location.state as { initialAIMessage?: string } | null;
+    if (navState?.initialAIMessage) {
+      navigate("/you");
+    } else {
+      navigate("/friends");
+    }
   };
 
   const handleViewHistory = () => {
