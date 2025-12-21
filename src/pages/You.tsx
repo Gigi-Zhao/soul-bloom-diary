@@ -269,13 +269,15 @@ const You = () => {
     console.log('[Bubble Click] 用户点击气泡，传递初始消息:', initialContent);
 
     navigate(`/chat/${aiRole.id}`, {
-      state: { initialAIMessage: initialContent }
+      state: { initialAIMessage: initialContent, from: '/you' }
     });
   };
 
   const handleChatClick = () => {
     if (aiRole) {
-      navigate(`/chat/${aiRole.id}`);
+      navigate(`/chat/${aiRole.id}`, {
+        state: { from: '/you' }
+      });
     }
   };
 
@@ -380,7 +382,7 @@ const You = () => {
             }}>
               🧸
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">纪念品</span>
+            <span className="text-[11px] text-[#4A4A4A]">纪念物</span>
           </div>
 
           <div 
