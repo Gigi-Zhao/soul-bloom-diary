@@ -273,10 +273,6 @@ const You = () => {
     });
   };
 
-  const handleJournalInput = () => {
-    navigate('/journals');
-  };
-
   const handleChatClick = () => {
     if (aiRole) {
       navigate(`/chat/${aiRole.id}`);
@@ -314,7 +310,7 @@ const You = () => {
         
         {/* Header relationship pill */}
         <div className="flex justify-center mt-10">
-          <div className="bg-white/85 backdrop-blur-[10px] px-5 py-2 rounded-full flex items-center gap-2 border border-white/40" style={{
+          <div className="bg-white/50 backdrop-blur-[10px] px-5 py-2 rounded-full flex items-center gap-2 border border-white/40" style={{
             boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
           }}>
             <span className="text-sm font-semibold text-[#4A4A4A]">{aiRole.name}</span>
@@ -325,48 +321,29 @@ const You = () => {
           </div>
         </div>
 
-        {/* Speech bubble area */}
-        <div className="flex-1 flex flex-col justify-center items-center relative mt-8">
-          {/* Speech bubble */}
-          <div 
-            onClick={handleBubbleClick}
-            className="absolute top-5 right-2 max-w-[180px] z-20 cursor-pointer"
-            style={{ animation: 'float 3s ease-in-out infinite' }}
-          >
-            <div className="bg-white px-4 py-3 rounded-2xl rounded-br-none relative" style={{
-              boxShadow: '0 5px 20px rgba(0,0,0,0.08)'
-            }}>
-              <p className="text-[13px] text-[#4A4A4A] leading-relaxed">
-                {loadingBubble ? "..." : bubbleMessage || aiRole.catchphrase || "昨晚睡得好吗？我刚调好一段旋律，感觉很像你..."}
-              </p>
-              <div 
-                className="absolute bottom-0 right-0 w-0 h-0"
-                style={{
-                  borderTop: '8px solid white',
-                  borderLeft: '8px solid transparent',
-                  transform: 'translate(0, 100%)',
-                }}
-              />
+        {/* Spacer to push dashboard to bottom */}
+        <div className="flex-1 flex flex-col items-center justify-center w-full">
+          
+          {/* Minimalist Whisper Module */}
+          <div className="group flex items-center gap-3 bg-white/30 backdrop-blur-[2px] hover:bg-white/40 transition-all duration-500 px-5 py-3 rounded-full border border-white/20 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] cursor-default animate-in fade-in slide-in-from-bottom-4 duration-1000 max-w-[85%]">
+            
+            {/* Avatar Circle */}
+            <div className="w-8 h-8 rounded-full bg-white/60 flex items-center justify-center overflow-hidden shrink-0 border border-white/40 shadow-sm">
+               {aiRole?.name === '小兵' && aiRole.avatar_url ? (
+                  <img src={aiRole.avatar_url} alt="小兵" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm">💂‍♂️</span>
+                )}
             </div>
-          </div>
-        </div>
 
-        {/* Journal input card */}
-        <div 
-            onClick={handleJournalInput}
-            className="bg-white/65 backdrop-blur-[15px] rounded-3xl px-5 py-5 mb-4 border border-white/40 flex items-center justify-between cursor-pointer transition-transform duration-200 active:scale-[0.98]"
-            style={{
-              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.1)'
-            }}
-          >
-            <div className="flex-1">
-              <p className="text-base font-semibold text-[#4A4A4A] mb-1">告诉{aiRole.name}...</p>
-              <p className="text-xs text-[#8E8E93]">今天发生了什么？有什么想倾诉的吗？</p>
-            </div>
-            <div className="w-10 h-10 bg-[#9D85BE] rounded-full flex items-center justify-center text-white text-lg">
-              ✎
-            </div>
+            {/* Text */}
+            <p className="text-[#666] text-sm font-medium tracking-wide leading-relaxed">
+              这段时间，你在慢慢变勇敢。
+            </p>
+            
           </div>
+
+        </div>
 
         {/* Dashboard grid */}
         <div className="bg-white/50 backdrop-blur-[10px] rounded-3xl p-4 mb-20 grid grid-cols-4 gap-2.5">
@@ -374,48 +351,48 @@ const You = () => {
             onClick={handleChatClick}
             className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
           >
-            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl" style={{
               boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
             }}>
               💬
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">发消息</span>
+            <span className="text-[11px] text-[#4A4A4A]">聊天</span>
           </div>
 
           <div 
             onClick={() => navigate('/journals')}
             className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
           >
-            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl" style={{
               boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
             }}>
-              🎶
+              💗
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">TA的歌单</span>
-          </div>
-
-          <div 
-            onClick={() => navigate('/journals')}
-            className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
-          >
-            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
-              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
-            }}>
-              📅
-            </div>
-            <span className="text-[11px] text-[#4A4A4A]">心情日历</span>
+            <span className="text-[11px] text-[#4A4A4A]">梦想清单</span>
           </div>
 
           <div 
             onClick={() => navigate('/profile')}
             className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
           >
-            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl" style={{
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl" style={{
               boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
             }}>
               🧸
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">记忆柜</span>
+            <span className="text-[11px] text-[#4A4A4A]">纪念品</span>
+          </div>
+
+          <div 
+            onClick={() => navigate('/journals')}
+            className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
+          >
+            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl" style={{
+              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+            }}>
+              💭
+            </div>
+            <span className="text-[11px] text-[#4A4A4A]">想法</span>
           </div>
         </div>
       </div>
