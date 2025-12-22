@@ -9,17 +9,19 @@ import { toast } from "sonner";
 /**
  * Mood display configuration
  */
+const MOOD_IMAGE_BASE = import.meta.env.BASE_URL || "/";
+
 const MOOD_CONFIG: Record<string, { label: string; image: string; color: string }> = {
-  happy: { label: "开心", image: "/moods/happy.png", color: "bg-[#FFD166]" },
-  excited: { label: "期待", image: "/moods/excited.png", color: "bg-[#EF476F]" },
-  content: { label: "满足", image: "/moods/content.png", color: "bg-[#C8E7C8]" },
-  calm: { label: "平静", image: "/moods/calm.png", color: "bg-[#A8A39D]" },
-  tired: { label: "累", image: "/moods/tired.png", color: "bg-[#9C8574]" },
-  sad: { label: "悲伤", image: "/moods/sad.png", color: "bg-[#6C8EAD]" },
-  worried: { label: "担心", image: "/moods/worried.png", color: "bg-[#7FA99B]" },
-  confused: { label: "迷茫", image: "/moods/confused.png", color: "bg-[#8FB5D3]" },
-  anxious: { label: "心动", image: "/moods/anxious.png", color: "bg-[#C5A3D9]" },
-  angry: { label: "生气", image: "/moods/angry.png", color: "bg-[#06FFA5]" },
+  happy: { label: "开心", image: `${MOOD_IMAGE_BASE}moods/happy.png`, color: "bg-[#FFD166]" },
+  excited: { label: "期待", image: `${MOOD_IMAGE_BASE}moods/excited.png`, color: "bg-[#EF476F]" },
+  content: { label: "满足", image: `${MOOD_IMAGE_BASE}moods/content.png`, color: "bg-[#C8E7C8]" },
+  calm: { label: "平静", image: `${MOOD_IMAGE_BASE}moods/calm.png`, color: "bg-[#A8A39D]" },
+  tired: { label: "累", image: `${MOOD_IMAGE_BASE}moods/tired.png`, color: "bg-[#9C8574]" },
+  sad: { label: "悲伤", image: `${MOOD_IMAGE_BASE}moods/sad.png`, color: "bg-[#6C8EAD]" },
+  worried: { label: "担心", image: `${MOOD_IMAGE_BASE}moods/worried.png`, color: "bg-[#7FA99B]" },
+  confused: { label: "迷茫", image: `${MOOD_IMAGE_BASE}moods/confused.png`, color: "bg-[#8FB5D3]" },
+  anxious: { label: "心动", image: `${MOOD_IMAGE_BASE}moods/anxious.png`, color: "bg-[#C5A3D9]" },
+  angry: { label: "生气", image: `${MOOD_IMAGE_BASE}moods/angry.png`, color: "bg-[#06FFA5]" },
 };
 
 interface DiaryEntryFormProps {

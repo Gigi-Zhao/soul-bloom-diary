@@ -4,8 +4,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, MoreVertical, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface JournalEntry {
   id: string;
@@ -49,9 +66,14 @@ const MOOD_EMOJIS: Record<string, { image: string; color: string }> = {
 const JournalDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [entry, setEntry] = useState<JournalEntry | null>(null);
   const [comments, setComments] = useState<JournalComment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  console.log('[JournalDetail] showDeleteDialog:', showDeleteDialog);
 
   useEffect(() => {
     const fetchEntryAndComments = async () => {
@@ -120,6 +142,42 @@ const JournalDetail = () => {
     fetchEntryAndComments();
   }, [id]);
 
+  const handleDeleteJournal = async () => {
+    if (!id) return;
+
+    setIsDeleting(true);
+    try {
+      // Delete the journal entry (comments will be deleted automatically due to cascade)
+      const { error } = await supabase
+        .from('journal_entries')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "删除成功",
+        description: "日记已被删除",
+        duration: 2000,
+      });
+
+      // Navigate back to journals page and force refresh
+      setTimeout(() => {
+        window.location.href = '/journals';
+      }, 1000);
+    } catch (error) {
+      console.error('[JournalDetail] Error deleting journal:', error);
+      toast({
+        title: "删除失败",
+        description: "删除日记时出错，请稍后再试",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -141,7 +199,7 @@ const JournalDetail = () => {
   return (
     <div className="min-h-screen pb-8 bg-gradient-to-b from-background to-muted/20">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b">
+      <div className="sticky top-0 z-[110] bg-background/80 backdrop-blur-lg border-b">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <Button
             variant="ghost"
@@ -150,12 +208,38 @@ const JournalDetail = () => {
           >
             <ChevronLeft className="w-5 h-5" />
           </Button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-semibold">日记详情</h1>
             <p className="text-xs text-muted-foreground">
               {entry.date || format(new Date(entry.created_at), 'yyyy年M月d日')}
             </p>
           </div>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="更多选项"
+                className="relative"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" alignOffset={-80} className="z-[150]" sideOffset={8}>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive cursor-pointer"
+                onSelect={(e) => {
+                  console.log('[JournalDetail] Delete menu item clicked');
+                  e.preventDefault();
+                  setShowDeleteDialog(true);
+                  console.log('[JournalDetail] setShowDeleteDialog called');
+                }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                删除日记
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -174,7 +258,7 @@ const JournalDetail = () => {
               </div>
               <div className="space-y-0.5">
                 <div className="text-sm text-muted-foreground">
-                  {entry.time || format(new Date(entry.created_at), 'hh:mm')} {format(new Date(entry.created_at), 'a').toUpperCase()}
+                  {format(new Date(entry.created_at), 'hh:mm a').toUpperCase()}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   周{['日', '一', '二', '三', '四', '五', '六'][new Date(entry.created_at).getDay()]}
@@ -240,6 +324,28 @@ const JournalDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要删除这篇日记吗？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作无法撤销。删除后，这篇日记及其所有评论都将被永久删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteJournal}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "删除中..." : "确定删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

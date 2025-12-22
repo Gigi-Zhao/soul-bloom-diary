@@ -785,9 +785,9 @@ ${conversationContext}
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="fixed inset-0 flex flex-col bg-background">
       {/* Header */}
-      <header className="bg-card border-b border-border px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+      <header className="bg-card border-b border-border px-4 py-3 flex items-center gap-3 flex-shrink-0 z-10">
         <Button
           variant="ghost"
           size="icon"
@@ -806,7 +806,7 @@ ${conversationContext}
           <h1 className="font-semibold text-foreground">{aiRole.name}</h1>
           <p className="text-xs text-muted-foreground">{aiRole.description}</p>
         </div>
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
@@ -816,7 +816,14 @@ ${conversationContext}
               <MoreVertical className="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent 
+            align="end" 
+            alignOffset={-100} 
+            sideOffset={2} 
+            className="w-48 z-[150]"
+            avoidCollisions={false}
+            collisionPadding={0}
+          >
             <DropdownMenuItem onClick={handleViewHistory}>
               <History className="w-4 h-4 mr-2" />
               查看历史对话
@@ -888,7 +895,7 @@ ${conversationContext}
       {/* Input */}
       <form
         onSubmit={handleSendMessage}
-        className="bg-card border-t border-border px-4 py-3 flex items-center gap-2"
+        className="bg-card border-t border-border px-4 py-3 flex items-center gap-2 flex-shrink-0"
       >
         <Input
           value={newMessage}

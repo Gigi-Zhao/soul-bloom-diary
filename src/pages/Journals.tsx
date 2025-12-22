@@ -1,28 +1,30 @@
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, MessageCircle, Activity } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, startOfWeek, endOfWeek } from "date-fns";
 import { MoodSelector } from "@/components/journals/MoodSelector";
 import { DiaryEntryForm } from "@/components/journals/DiaryEntryForm";
 
+const MOOD_IMAGE_BASE = import.meta.env.BASE_URL || "/";
+
 /**
  * Mood emoji mapping for different moods
  */
 const MOOD_EMOJIS: Record<string, { image: string; color: string }> = {
-  happy: { image: "/moods/happy.png", color: "bg-[#FFD166]" },
-  excited: { image: "/moods/excited.png", color: "bg-[#EF476F]" },
-  content: { image: "/moods/content.png", color: "bg-[#C8E7C8]" },
-  calm: { image: "/moods/calm.png", color: "bg-[#A8A39D]" },
-  tired: { image: "/moods/tired.png", color: "bg-[#9C8574]" },
-  sad: { image: "/moods/sad.png", color: "bg-[#6C8EAD]" },
-  worried: { image: "/moods/worried.png", color: "bg-[#7FA99B]" },
-  confused: { image: "/moods/confused.png", color: "bg-[#8FB5D3]" },
-  anxious: { image: "/moods/anxious.png", color: "bg-[#C5A3D9]" },
-  angry: { image: "/moods/angry.png", color: "bg-[#06FFA5]" },
+  happy: { image: `${MOOD_IMAGE_BASE}moods/happy.png`, color: "bg-[#FFD166]" },
+  excited: { image: `${MOOD_IMAGE_BASE}moods/excited.png`, color: "bg-[#EF476F]" },
+  content: { image: `${MOOD_IMAGE_BASE}moods/content.png`, color: "bg-[#C8E7C8]" },
+  calm: { image: `${MOOD_IMAGE_BASE}moods/calm.png`, color: "bg-[#A8A39D]" },
+  tired: { image: `${MOOD_IMAGE_BASE}moods/tired.png`, color: "bg-[#9C8574]" },
+  sad: { image: `${MOOD_IMAGE_BASE}moods/sad.png`, color: "bg-[#6C8EAD]" },
+  worried: { image: `${MOOD_IMAGE_BASE}moods/worried.png`, color: "bg-[#7FA99B]" },
+  confused: { image: `${MOOD_IMAGE_BASE}moods/confused.png`, color: "bg-[#8FB5D3]" },
+  anxious: { image: `${MOOD_IMAGE_BASE}moods/anxious.png`, color: "bg-[#C5A3D9]" },
+  angry: { image: `${MOOD_IMAGE_BASE}moods/angry.png`, color: "bg-[#06FFA5]" },
 };
 
 interface JournalEntry {
@@ -43,6 +45,7 @@ interface JournalEntry {
  */
 const Journals = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   // State for selected date and current month
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -122,6 +125,15 @@ const Journals = () => {
   useEffect(() => {
     fetchEntries();
   }, [fetchEntries]);
+
+  // Refresh entries when returning to the page with refresh flag
+  useEffect(() => {
+    if (location.pathname === '/journals' && location.state?.refresh) {
+      fetchEntries();
+      // Clear the refresh flag to prevent reloading on subsequent visits
+      navigate('/journals', { replace: true, state: {} });
+    }
+  }, [location.pathname, location.state, fetchEntries, navigate]);
 
   /**
    * Get all days in the current month up to today only
@@ -318,14 +330,19 @@ const Journals = () => {
         onTouchEnd={handleTouchEnd}
       >
         {/* Month Navigation Header */}
-        <div 
-          className="flex items-center justify-center mb-6 cursor-pointer select-none"
-          onClick={() => setIsCalendarCollapsed(!isCalendarCollapsed)}
-        >
-          <div className="text-center flex flex-col items-center gap-1">
-            <div className="text-base font-normal text-foreground mt-10">{format(currentMonth, 'yyyy')}</div>
-            <div className="relative inline-block px-8 py-1.5 -mt-1">
-              <img 
+        <div className="mb-6 flex flex-col items-center select-none relative">
+          <button
+            type="button"
+            className="text-base font-normal text-foreground mt-10 p-0 bg-transparent border-0 cursor-pointer"
+            onClick={() => setIsCalendarCollapsed(!isCalendarCollapsed)}
+          >
+            {format(currentMonth, 'yyyy')}
+          </button>
+          <div 
+            className="relative inline-block px-8 py-1.5 -mt-1 cursor-pointer"
+            onClick={() => setIsCalendarCollapsed(!isCalendarCollapsed)}
+          >
+            <img 
                 src="/date_bg.png" 
                 alt="" 
                 className="absolute w-full h-full object-cover opacity-50"
@@ -335,7 +352,6 @@ const Journals = () => {
                 {['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'][currentMonth.getMonth()]}
               </span>
             </div>
-          </div>
         </div>
 
         {/* Collapsible Calendar Grid */}
@@ -383,8 +399,9 @@ const Journals = () => {
       {/* Bottom Section: Journal Entries Feed */}
       <div className="max-w-md mx-auto px-4">
         {/* Selected Date Header */}
-        <div className="mb-4 text-lg font-semibold">
-          {format(selectedDate, 'M月d日 EEEE', { locale: undefined })}
+        <div className="mb-4 text-lg font-semibold flex items-center justify-between">
+          <span>{format(selectedDate, 'M月d日 EEEE', { locale: undefined })}</span>
+          <img src="/圣诞帽.png" alt="Christmas Hat" className="w-6 h-6 object-contain translate-y-1" />
         </div>
 
         {/* Entries List */}
@@ -418,7 +435,7 @@ const Journals = () => {
                       {/* Entry Content */}
                       <div className="flex-1 min-w-0">
                         <div className="text-xs text-muted-foreground mb-1">
-                          {format(new Date(entry.created_at), 'hh:mm a')}
+                          {format(new Date(entry.created_at), 'hh:mm a').toUpperCase()}
                         </div>
                         <p className="text-sm text-foreground line-clamp-2">
                           {entry.content}

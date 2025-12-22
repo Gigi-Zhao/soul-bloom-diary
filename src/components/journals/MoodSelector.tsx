@@ -4,17 +4,19 @@ import { useState, useEffect } from "react";
 /**
  * Mood configuration with images and colors
  */
+const MOOD_IMAGE_BASE = import.meta.env.BASE_URL || "/";
+
 const MOODS = [
-  { id: "happy", name: "开心", image: "/moods/happy.png", color: "#FFD166" },
-  { id: "excited", name: "期待", image: "/moods/excited.png", color: "#EF476F" },
-  { id: "content", name: "满足", image: "/moods/content.png", color: "#C8E7C8" },
-  { id: "calm", name: "平静", image: "/moods/calm.png", color: "#A8A39D" },
-  { id: "tired", name: "累", image: "/moods/tired.png", color: "#9C8574" },
-  { id: "sad", name: "悲伤", image: "/moods/sad.png", color: "#6C8EAD" },
-  { id: "worried", name: "担心", image: "/moods/worried.png", color: "#7FA99B" },
-  { id: "confused", name: "迷茫", image: "/moods/confused.png", color: "#8FB5D3" },
-  { id: "anxious", name: "心动", image: "/moods/anxious.png", color: "#C5A3D9" },
-  { id: "angry", name: "生气", image: "/moods/angry.png", color: "#06FFA5" },
+  { id: "happy", name: "开心", image: `${MOOD_IMAGE_BASE}moods/happy.png`, color: "#FFD166" },
+  { id: "excited", name: "期待", image: `${MOOD_IMAGE_BASE}moods/excited.png`, color: "#EF476F" },
+  { id: "content", name: "满足", image: `${MOOD_IMAGE_BASE}moods/content.png`, color: "#C8E7C8" },
+  { id: "calm", name: "平静", image: `${MOOD_IMAGE_BASE}moods/calm.png`, color: "#A8A39D" },
+  { id: "tired", name: "累", image: `${MOOD_IMAGE_BASE}moods/tired.png`, color: "#9C8574" },
+  { id: "sad", name: "悲伤", image: `${MOOD_IMAGE_BASE}moods/sad.png`, color: "#6C8EAD" },
+  { id: "worried", name: "担心", image: `${MOOD_IMAGE_BASE}moods/worried.png`, color: "#7FA99B" },
+  { id: "confused", name: "迷茫", image: `${MOOD_IMAGE_BASE}moods/confused.png`, color: "#8FB5D3" },
+  { id: "anxious", name: "心动", image: `${MOOD_IMAGE_BASE}moods/anxious.png`, color: "#C5A3D9" },
+  { id: "angry", name: "生气", image: `${MOOD_IMAGE_BASE}moods/angry.png`, color: "#06FFA5" },
 ];
 
 interface MoodSelectorProps {

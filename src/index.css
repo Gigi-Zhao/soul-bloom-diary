@@ -133,6 +133,7 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
     font-family: "Noto Sans SC", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    zoom: 0.9;
   }
 }
 

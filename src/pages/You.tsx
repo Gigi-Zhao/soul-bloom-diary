@@ -346,9 +346,11 @@ const You = () => {
           </div>
 
         </div>
+      </div>
 
-        {/* Dashboard grid */}
-        <div className="bg-white/50 backdrop-blur-[10px] rounded-3xl p-4 mb-20 grid grid-cols-4 gap-2.5">
+      {/* Dashboard grid - Fixed at bottom above tab bar */}
+      <div className="fixed bottom-24 left-0 right-0 px-5 z-10">
+        <div className="max-w-md mx-auto bg-white/50 backdrop-blur-[10px] rounded-3xl p-4 grid grid-cols-4 gap-2.5">
           <div 
             onClick={handleChatClick}
             className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
