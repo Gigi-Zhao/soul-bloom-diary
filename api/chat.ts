@@ -3,8 +3,7 @@
  * 修改此处的常量来更换使用的模型
  */
 
-const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
-//const DEFAULT_CHAT_MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
+import { getChatModelsForRequest } from './model-config';
 
 interface VercelRequestLike {
     method?: string;
@@ -47,14 +46,57 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         const body = (req as { body?: unknown }).body as
             | { model?: string; messages?: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> }
             | undefined;
-        const model = body?.model;
         const messages = body?.messages;
         if (!Array.isArray(messages) || messages.length === 0) {
             return res.status(400).json({ error: "Invalid request: messages required" });
         }
 
-        // 使用配置的模型或请求指定的模型
-        const usedModel = (model && model.trim()) ? model : DEFAULT_CHAT_MODEL;
+        // 获取模型列表（包含请求指定的模型和默认模型列表）
+        const models = getChatModelsForRequest();
+        
+        let openrouterRes: Response | null = null;
+        let lastError = "";
+
+        // 依次尝试模型
+        for (const model of models) {
+            try {
+                console.log(`[Chat] Trying model: ${model}`);
+                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                        "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
+                        "X-Title": "Soul Bloom Diary",
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages,
+                        stream: true,
+                    }),
+                });
+
+                if (response.ok && response.body) {
+                    openrouterRes = response;
+                    console.log(`[Chat] Successfully connected to model: ${model}`);
+                    break;
+                } else {
+                    const text = await response.text().catch(() => "");
+                    lastError = `Model ${model} failed: ${response.status} ${text}`;
+                    console.warn(`[Chat] ${lastError}`);
+                }
+            } catch (e) {
+                lastError = `Model ${model} error: ${e instanceof Error ? e.message : String(e)}`;
+                console.warn(`[Chat] ${lastError}`);
+            }
+        }
+
+        if (!openrouterRes || !openrouterRes.body) {
+            res.statusCode = 500;
+            // 如果还没发送头部，现在发送错误响应
+            // 注意：这里我们假设还没有发送 SSE 头部
+            return res.status(500).json({ error: `All models failed. Last error: ${lastError}` });
+        }
 
         // Start Server-Sent Events streaming to client
         res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -64,29 +106,6 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         const maybeFlush = res as unknown as { flushHeaders?: () => void };
         if (typeof maybeFlush.flushHeaders === "function") {
             maybeFlush.flushHeaders();
-        }
-
-        const openrouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`,
-                "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
-                "X-Title": "Soul Bloom Diary",
-            },
-            body: JSON.stringify({
-                model: usedModel,
-                messages,
-                stream: true,
-            }),
-        });
-
-        if (!openrouterRes.ok || !openrouterRes.body) {
-            const text = await openrouterRes.text().catch(() => "");
-            res.statusCode = openrouterRes.ok ? 500 : openrouterRes.status;
-            res.write(`event: error\n`);
-            res.write(`data: ${JSON.stringify({ error: `Upstream error: ${text}` })}\n\n`);
-            return res.end();
         }
 
         const decoder = new TextDecoder();

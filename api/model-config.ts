@@ -8,8 +8,8 @@
 // ========================================
 
 /**
- * 对话模型配置
- * 用于：AI 角色对话、心理咨询、标题生成等文本交互场景
+ * 对话模型列表
+ * 系统将按顺序尝试使用列表中的模型，直到成功生成内容
  * 
  * 推荐的免费模型：
  * - 'google/gemini-flash-1.5' (推荐) - Google 的高性能对话模型
@@ -19,11 +19,14 @@
  * - 'microsoft/phi-3-mini-128k-instruct:free' - 微软轻量级模型
  * - 'mistralai/mistral-7b-instruct:free' - Mistral AI 指令模型
  */
-export const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
+export const CHAT_MODELS = [
+  'z-ai/glm-4.5-air:free',
+  'xiaomi/mimo-v2-flash:free'
+];
 
 /**
- * 图片解析模型配置
- * 用于：角色图片识别、头像分析等视觉理解场景
+ * 图片解析模型列表
+ * 系统将按顺序尝试使用列表中的模型，直到成功生成内容
  * 
  * 推荐的免费视觉模型：
  * - 'google/gemini-flash-1.5' (推荐) - 多模态模型，支持图像理解
@@ -32,25 +35,25 @@ export const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
  * - 'qwen/qwen-2-vl-7b-instruct:free' - 通义千问视觉版，中文优化
  * - 'mistralai/pixtral-12b:free' - Mistral 多模态模型
  */
-export const DEFAULT_VISION_MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
+export const VISION_MODELS = [
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'nvidia/nemotron-nano-12b-v2-vl:free'
+];
 
 // ========================================
 // 以下代码无需修改
 // ========================================
 
 /**
- * 获取聊天模型（优先使用请求指定的模型，否则使用默认配置）
+ * 获取聊天模型列表（优先使用请求指定的模型作为首选）
  */
-export const getChatModelForRequest = (requestModel?: string): string => {
-  if (requestModel && requestModel.trim()) {
-    return requestModel;
-  }
-  return DEFAULT_CHAT_MODEL;
+export const getChatModelsForRequest = (): string[] => {
+  return CHAT_MODELS;
 };
 
 /**
- * 获取视觉模型
+ * 获取视觉模型列表
  */
-export const getVisionModelForRequest = (): string => {
-  return DEFAULT_VISION_MODEL;
+export const getVisionModelsForRequest = (): string[] => {
+  return VISION_MODELS;
 };

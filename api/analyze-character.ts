@@ -2,7 +2,7 @@
  * 模型配置
  * 修改此处的常量来更换使用的图片解析模型
  */
-const DEFAULT_VISION_MODEL = 'mistralai/mistral-small-3.2-24b-instruct:free';
+import { getVisionModelsForRequest } from './model-config';
 
 interface VercelRequestLike {
     method?: string;
@@ -53,52 +53,71 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(400).json({ error: "Invalid request: image required" });
         }
 
-        // 使用配置的视觉模型
-        const visionModel = DEFAULT_VISION_MODEL;
+        // 获取视觉模型列表
+        const models = getVisionModelsForRequest();
+        let response: Response | null = null;
+        let lastError = "";
 
         // Use vision model to analyze the character
         step = "call-openrouter";
-        console.log("[analyze-character] step", step, { hasImage: true, model: visionModel });
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`,
-                "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
-                "X-Title": "Soul Bloom Diary",
-            },
-            body: JSON.stringify({
-                model: visionModel,
-                messages: [ 
-                    {
-                        role: "user",
-                        content: [
+        
+        for (const model of models) {
+            try {
+                console.log("[analyze-character] step", step, { hasImage: true, model: model });
+                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                        "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
+                        "X-Title": "Soul Bloom Diary",
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [ 
                             {
-                                type: "text",
-                                text: `分析这张图片中的角色，提取以下信息并以JSON格式返回（仅返回JSON，不要有其他文字）：
-                                {
-                                "name": "角色名字（可爱、亲切、具象化的名字，不要泛泛的形容）",
-                                "description": "详细的角色设定和性格特点描述（50-100字），富有文采，文艺且生动",
-                                "tags": ["标签1", "标签2", "标签3"]（3-5个描述性标签）,
-                                "catchphrase": "一句符合角色性格的口头禅"
-                                }`
-                            },
-                            {
-                                type: "image_url",
-                                image_url: {
-                                    url: image.startsWith("data:") ? image : `data:image/jpeg;base64,${image}`
-                                }
+                                role: "user",
+                                content: [
+                                    {
+                                        type: "text",
+                                        text: `分析这张图片中的角色，提取以下信息并以JSON格式返回（仅返回JSON，不要有其他文字）：
+                                        {
+                                        "name": "角色名字（可爱、亲切、具象化的名字，不要泛泛的形容）",
+                                        "description": "详细的角色设定和性格特点描述（50-100字），富有文采，文艺且生动",
+                                        "tags": ["标签1", "标签2", "标签3"]（3-5个描述性标签）,
+                                        "catchphrase": "一句符合角色性格的口头禅"
+                                        }`
+                                    },
+                                    {
+                                        type: "image_url",
+                                        image_url: {
+                                            url: image.startsWith("data:") ? image : `data:image/jpeg;base64,${image}`
+                                        }
+                                    }
+                                ]
                             }
-                        ]
-                    }
-                ],
-            }),
-        });
+                        ],
+                    }),
+                });
 
-        if (!response.ok) {
-            const text = await response.text().catch(() => "");
-            console.error("OpenRouter error:", response.status, text);
-            return res.status(response.status).json({ error: `Upstream error: ${text}` });
+                if (res.ok) {
+                    response = res;
+                    console.log(`[Analyze] Successfully connected to model: ${model}`);
+                    break;
+                } else {
+                    const text = await res.text().catch(() => "");
+                    lastError = `Model ${model} failed: ${res.status} ${text}`;
+                    console.warn(`[Analyze] ${lastError}`);
+                }
+            } catch (e) {
+                lastError = `Model ${model} error: ${e instanceof Error ? e.message : String(e)}`;
+                console.warn(`[Analyze] ${lastError}`);
+            }
+        }
+
+        if (!response) {
+            console.error("All models failed:", lastError);
+            return res.status(500).json({ error: `All models failed. Last error: ${lastError}` });
         }
 
         step = "parse-openrouter-response";

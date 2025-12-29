@@ -3,7 +3,21 @@
  * 根据最新日记生成吸引用户聊天的气泡消息
  */
 
-const DEFAULT_CHAT_MODEL = 'meituan/longcat-flash-chat:free';
+import { getChatModelsForRequest } from './model-config';
+
+// 动态获取前端站点 URL（用于 HTTP-Referer）
+function getSiteUrl(req: VercelRequestLike): string {
+    // 优先使用 Referer 头
+    if (req.headers.referer) return req.headers.referer;
+    // 其次 Origin
+    if (req.headers.origin) return req.headers.origin;
+    // 最后用 Host 构造
+    const host = req.headers.host;
+    const proto = (req.headers['x-forwarded-proto'] as string) || 'http';
+    if (host) return `${proto}://${host}`;
+    // 兜底
+    return 'http://localhost:8080';
+}
 
 interface VercelRequestLike {
     method?: string;
@@ -96,37 +110,59 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
 # Output
 请直接输出气泡消息内容，不要包含任何其他说明或前缀。`;
 
-        const openrouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`,
-                "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
-                "X-Title": "Soul Bloom Diary",
-            },
-            body: JSON.stringify({
-                model: DEFAULT_CHAT_MODEL,
-                messages: [
-                    {
-                        role: "system",
-                        content: systemPrompt
-                    },
-                    {
-                        role: "user",
-                        content: "请生成回复："
-                    }
-                ],
-                temperature: 0.8, // 稍高一点的温度让回复更有创意
-                max_tokens: 100, // 限制token数量确保简短
-            }),
-        });
+        // 获取模型列表
+        const models = getChatModelsForRequest();
+        let openrouterRes: Response | null = null;
+        let lastError = "";
 
-        if (!openrouterRes.ok) {
-            const errorText = await openrouterRes.text();
-            console.error("OpenRouter error:", errorText);
-            return res.status(openrouterRes.status).json({ 
+        // 依次尝试模型
+        for (const model of models) {
+            try {
+                console.log(`[Bubble] Trying model: ${model}`);
+                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                        "HTTP-Referer": getSiteUrl(req),
+                        "X-Title": "Soul Bloom Diary",
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            {
+                                role: "system",
+                                content: systemPrompt
+                            },
+                            {
+                                role: "user",
+                                content: "请生成回复："
+                            }
+                        ],
+                        temperature: 0.8, // 稍高一点的温度让回复更有创意
+                        max_tokens: 100, // 限制token数量确保简短
+                    }),
+                });
+
+                if (response.ok) {
+                    openrouterRes = response;
+                    console.log(`[Bubble] Successfully connected to model: ${model}`);
+                    break;
+                } else {
+                    const text = await response.text().catch(() => "");
+                    lastError = `Model ${model} failed: ${response.status} ${text}`;
+                    console.warn(`[Bubble] ${lastError}`);
+                }
+            } catch (e) {
+                lastError = `Model ${model} error: ${e instanceof Error ? e.message : String(e)}`;
+                console.warn(`[Bubble] ${lastError}`);
+            }
+        }
+
+        if (!openrouterRes) {
+            return res.status(500).json({ 
                 error: "Failed to generate message",
-                details: errorText 
+                details: `All models failed. Last error: ${lastError}` 
             });
         }
 

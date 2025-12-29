@@ -3,7 +3,7 @@
  * Generates AI role comments for journal entries
  */
 
-const DEFAULT_MODEL = 'meituan/longcat-flash-chat:free';
+import { getChatModelsForRequest } from './model-config';
 
 interface VercelRequestLike {
   method?: string;
@@ -66,13 +66,11 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const usedModel = (model && model.trim()) ? model : DEFAULT_MODEL;
-    
     console.log('[generate-comment] Generating comment for:', {
       aiRoleName,
       mood: journalMood,
       contentLength: journalContent.length,
-      model: usedModel
+      model: model || 'default list'
     });
 
     // Construct the prompt for AI comment generation
@@ -99,29 +97,49 @@ ${journalContent}
 
     console.log('[generate-comment] Calling OpenRouter API...');
 
-    const openrouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
-        "X-Title": "Soul Bloom Diary",
-      },
-      body: JSON.stringify({
-        model: usedModel,
-        messages,
-        temperature: 0.8,
-        max_tokens: 300,
-      }),
-    });
+    // 获取模型列表
+    const models = getChatModelsForRequest();
+    let openrouterRes: Response | null = null;
+    let lastError = "";
 
-    if (!openrouterRes.ok) {
-      const errorText = await openrouterRes.text().catch(() => "");
-      console.error('[generate-comment] OpenRouter error:', openrouterRes.status, errorText);
-      return res.status(openrouterRes.status).json({ 
-        error: `AI service error: ${openrouterRes.status}`,
-        details: errorText 
-      });
+    // 依次尝试模型
+    for (const m of models) {
+        try {
+            console.log(`[generate-comment] Trying model: ${m}`);
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiKey}`,
+                    "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
+                    "X-Title": "Soul Bloom Diary",
+                },
+                body: JSON.stringify({
+                    model: m,
+                    messages,
+                    temperature: 0.8,
+                    max_tokens: 300,
+                }),
+            });
+
+            if (response.ok) {
+                openrouterRes = response;
+                console.log(`[generate-comment] Successfully connected to model: ${m}`);
+                break;
+            } else {
+                const text = await response.text().catch(() => "");
+                lastError = `Model ${m} failed: ${response.status} ${text}`;
+                console.warn(`[generate-comment] ${lastError}`);
+            }
+        } catch (e) {
+            lastError = `Model ${m} error: ${e instanceof Error ? e.message : String(e)}`;
+            console.warn(`[generate-comment] ${lastError}`);
+        }
+    }
+
+    if (!openrouterRes) {
+      console.error('[generate-comment] All models failed:', lastError);
+      return res.status(500).json({ error: `All models failed. Last error: ${lastError}` });
     }
 
     const data = await openrouterRes.json();

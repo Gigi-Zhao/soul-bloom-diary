@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { CHAT_MODELS } from "@/../api/model-config";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,7 +155,7 @@ const RoleSetup = () => {
         tags: tags,
         mbti_type: mbtiType || null,
         catchphrase: catchphrase.trim(),
-        model: 'meituan/longcat-flash-chat:free',
+        model: CHAT_MODELS[0],
         user_id: user.id,
       });
 
@@ -169,7 +170,7 @@ const RoleSetup = () => {
           mbti_type: mbtiType || null,
           catchphrase: catchphrase.trim(),
           prompt: prompt,
-          model: 'meituan/longcat-flash-chat:free',
+          model: CHAT_MODELS[0],
           user_id: user.id,
         })
         .select();
