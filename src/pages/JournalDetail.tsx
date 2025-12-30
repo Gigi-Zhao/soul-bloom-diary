@@ -204,7 +204,7 @@ const JournalDetail = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/journals')}
+            onClick={() => navigate('/journals', { replace: true, state: { refresh: true } })}
           >
             <ChevronLeft className="w-5 h-5" />
           </Button>
