@@ -174,11 +174,39 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             }>;
         };
 
-        const generatedMessage = data.choices?.[0]?.message?.content?.trim();
+        let generatedMessage = data.choices?.[0]?.message?.content?.trim();
 
         if (!generatedMessage) {
             return res.status(500).json({ error: "No message generated" });
         }
+
+        // 格式化消息，去除多余空格（特别是中文字符之间的空格）
+        let formatted = generatedMessage.trim();
+        
+        // 循环处理，直到没有更多中文字符之间的空格
+        let previousResult = '';
+        while (formatted !== previousResult) {
+            previousResult = formatted;
+            // 去除中文字符/数字/emoji之间的单个空格
+            formatted = formatted.replace(/([\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef0-9\u{1F300}-\u{1F9FF}]) +([\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef0-9\u{1F300}-\u{1F9FF}])/gu, '$1$2');
+            // 去除中文字符和中文标点之间的空格
+            formatted = formatted.replace(/([\u4e00-\u9fa5]) +([，。！？；：、""''（）【】《》])/g, '$1$2');
+            formatted = formatted.replace(/([，。！？；：、""''（）【】《》]) +([\u4e00-\u9fa5])/g, '$1$2');
+            // 去除中文标点之间的空格
+            formatted = formatted.replace(/([，。！？；：、""''（）【】《》]) +([，。！？；：、""''（）【】《》])/g, '$1$2');
+        }
+        
+        generatedMessage = formatted
+            // 合并多个连续空格为单个空格（但保留换行符）
+            .replace(/[ \t]+/g, ' ')
+            // 去除行首行尾空格（但保留换行符）
+            .split('\n')
+            .map(line => line.trim())
+            .join('\n')
+            // 去除超过两个的连续换行符
+            .replace(/\n{3,}/g, '\n\n')
+            // 最后再次去除首尾空白
+            .trim();
 
         return res.status(200).json({ 
             message: generatedMessage 

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatAIText } from "@/lib/utils";
 
 interface Message {
   id: string;
@@ -85,7 +86,7 @@ const Chat = () => {
           : msg
       )
     );
-    scrollToBottom();
+    // 移除自动滚动，让用户控制滚动行为
   };
 
   // Function to generate conversation title based on last 5 messages
@@ -370,7 +371,11 @@ ${conversationContext}
       const messageData = data || [];
       setMessages(messageData);
       messageIdsRef.current = new Set(messageData.map(m => m.id));
-      setTimeout(scrollToBottom, 100);
+      // 首次加载消息时滚动到底部，但之后不再自动滚动
+      // 只在用户发送新消息时滚动
+      if (messageData.length > 0) {
+        setTimeout(() => scrollToBottom(), 100);
+      }
     }
   }, [conversationId, toast]);
 
@@ -397,7 +402,8 @@ ${conversationContext}
           if (newMsg.conversation_id === conversationId && !messageIdsRef.current.has(newMsg.id)) {
             messageIdsRef.current.add(newMsg.id);
             setMessages((prev) => [...prev, newMsg]);
-            scrollToBottom();
+            // 移除实时订阅时的自动滚动，避免干扰用户阅读
+            // 只有用户主动发送消息时才滚动
           }
         }
       )
@@ -408,8 +414,23 @@ ${conversationContext}
     };
   }, [conversationId, fetchMessages]);
 
+  // 滚动到底部，但保持距离底部有若干行的距离（类似Gemini/ChatGPT的效果）
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!messagesEndRef.current) return;
+    
+    // 获取消息容器
+    const messagesContainer = messagesEndRef.current.parentElement;
+    if (!messagesContainer) return;
+    
+    // 计算滚动位置：滚动到底部，但保留约3-4行的空间（约120px）
+    const scrollHeight = messagesContainer.scrollHeight;
+    const clientHeight = messagesContainer.clientHeight;
+    const offset = 120; // 保留约3-4行的空间
+    
+    messagesContainer.scrollTo({
+      top: scrollHeight - clientHeight - offset,
+      behavior: "smooth"
+    });
   };
 
   const handleBackClick = () => {
@@ -596,7 +617,8 @@ ${conversationContext}
       if (userMsgData) {
         messageIdsRef.current.add(userMsgData.id);
         setMessages((prev) => [...prev, userMsgData]);
-        scrollToBottom();
+        // 用户发送消息后，滚动到底部（保持若干行距离）
+        setTimeout(() => scrollToBottom(), 50);
         
         // Mark that new messages have been sent in this session
         hasNewMessagesRef.current = true;
@@ -682,7 +704,7 @@ ${conversationContext}
             created_at: new Date().toISOString(),
           } as Message,
         ]);
-        scrollToBottom();
+        // 移除自动滚动，AI生成回复时不自动滚动
 
         const reader = aiRes.body.getReader();
         const decoder = new TextDecoder();
@@ -691,12 +713,14 @@ ${conversationContext}
         const persistFinal = async () => {
           const finalText = streamingMessageRef.current;
           if (!finalText) return;
+          // 格式化AI回复文本，去除多余空格
+          const formattedText = formatAIText(finalText);
           const { data: aiMsgData, error: aiMsgError } = await supabase
             .from('messages')
             .insert({
               conversation_id: activeConversationId!,
               sender_role: 'ai',
-              content: finalText,
+              content: formattedText,
             })
             .select()
             .single();
@@ -712,7 +736,8 @@ ${conversationContext}
             setMessages((prev) => prev.map(m => m.id === tempId ? aiMsgData : m));
             currentStreamingIdRef.current = null;
             streamingMessageRef.current = "";
-            scrollToBottom();
+            // 移除自动滚动，AI回复完成后不自动滚动
+            // 让用户自己控制是否查看完整回复
             
             // 不在这里生成标题，改为用户点击返回时生成
           }
@@ -737,7 +762,8 @@ ${conversationContext}
               } else {
                 // 每个chunk都是纯文本，直接拼接
                 streamingMessageRef.current += dataStr;
-                updateStreamingMessage(streamingMessageRef.current);
+                // 实时格式化显示，但保存时会再次格式化
+                updateStreamingMessage(formatAIText(streamingMessageRef.current));
               }
             }
           }
@@ -751,7 +777,8 @@ ${conversationContext}
             await persistFinal();
           } else if (dataStr) {
             streamingMessageRef.current += dataStr;
-            updateStreamingMessage(streamingMessageRef.current);
+            // 实时格式化显示，但保存时会再次格式化
+            updateStreamingMessage(formatAIText(streamingMessageRef.current));
             await persistFinal();
           }
         }
