@@ -115,19 +115,60 @@ export const DiaryEntryForm = ({ open, onClose, mood, onSuccess, entry, selected
               console.log(`[DiaryEntryForm] 🚀 开始为 ${role.name} 生成评论...`);
               
               // Call the generate-comment API
-              const response = await fetch('/api/generate-comment', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  journalContent: content,
-                  journalMood: mood,
-                  aiRoleName: role.name,
-                  aiRolePrompt: role.prompt,
-                  model: role.model,
-                }),
+              // 支持本地开发：使用环境变量或回退到 Vercel URL
+              const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
+              const primaryEndpoint = apiBase 
+                ? `${apiBase.replace(/\/$/, '')}/api/generate-comment` 
+                : '/api/generate-comment';
+              const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/generate-comment';
+              
+              console.log(`[DiaryEntryForm] 🔗 API端点配置:`, {
+                apiBase,
+                primaryEndpoint,
+                fallbackEndpoint,
+                isLocalhost: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
               });
+              
+              const makeRequest = async (url: string) => {
+                console.log(`[DiaryEntryForm] 📡 请求URL: ${url}`);
+                try {
+                  const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      journalContent: content,
+                      journalMood: mood,
+                      aiRoleName: role.name,
+                      aiRolePrompt: role.prompt,
+                      model: role.model,
+                    }),
+                  });
+                  return response;
+                } catch (error) {
+                  console.error(`[DiaryEntryForm] ❌ 网络请求失败:`, error);
+                  throw error;
+                }
+              };
+              
+              // 先尝试主端点，如果失败则尝试备用端点
+              let response: Response;
+              try {
+                response = await makeRequest(primaryEndpoint);
+                if (!response.ok && primaryEndpoint !== fallbackEndpoint) {
+                  console.log(`[DiaryEntryForm] ⚠️ 主端点返回错误 (${response.status})，尝试备用端点...`);
+                  response = await makeRequest(fallbackEndpoint);
+                }
+              } catch (error) {
+                // 如果主端点网络请求失败，尝试备用端点
+                if (primaryEndpoint !== fallbackEndpoint) {
+                  console.log(`[DiaryEntryForm] ⚠️ 主端点网络错误，尝试备用端点...`);
+                  response = await makeRequest(fallbackEndpoint);
+                } else {
+                  throw error;
+                }
+              }
 
               console.log(`[DiaryEntryForm] 📊 API响应状态 (${role.name}):`, {
                 status: response.status,

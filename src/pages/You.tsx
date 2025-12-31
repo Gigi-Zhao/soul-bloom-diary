@@ -24,13 +24,9 @@ const You = () => {
   const { toast } = useToast();
   const [aiRole, setAiRole] = useState<AIRole | null>(null);
   const [loading, setLoading] = useState(true);
-  const [bubbleMessage, setBubbleMessage] = useState<string>("");
-  const [loadingBubble, setLoadingBubble] = useState(false);
   const [relationshipDays, setRelationshipDays] = useState<number>(0);
   const [touchFeedback, setTouchFeedback] = useState<{ text: string; x: number; y: number } | null>(null);
   const hasInitializedRef = useRef(false);
-  const bubbleRetryCountRef = useRef(0);
-  const bubbleSuccessRef = useRef(false);
   const characterAreaRef = useRef<HTMLDivElement>(null);
   const [userName, setUserName] = useState<string>("小Q");
 
@@ -79,109 +75,6 @@ const You = () => {
     setTimeout(() => setTouchFeedback(null), 1000);
   };
 
-  // Generate bubble message
-  const generateBubbleMessage = async (aiRoleName: string, isRetry: boolean = false) => {
-    if (bubbleSuccessRef.current) {
-      console.log('[Bubble] 气泡消息已成功生成，跳过重复请求');
-      return;
-    }
-
-    if (isRetry) {
-      bubbleRetryCountRef.current += 1;
-      if (bubbleRetryCountRef.current > 3) {
-        console.log('[Bubble] 已达到最大重试次数(3次)，停止重试');
-        setBubbleMessage(`你对${aiRoleName}的热情，真让人期待啊......`);
-        setLoadingBubble(false);
-        return;
-      }
-      console.log(`[Bubble] 开始第 ${bubbleRetryCountRef.current} 次重试`);
-    } else {
-      bubbleRetryCountRef.current = 0;
-      console.log('[Bubble] 首次请求气泡消息');
-    }
-
-    try {
-      setLoadingBubble(true);
-      console.log('[Bubble] 开始生成气泡消息，角色：', aiRoleName);
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('[Bubble] 获取用户失败:', userError);
-        throw userError;
-      }
-      if (!user) {
-        console.warn('[Bubble] 未获取到用户，终止气泡生成');
-        return;
-      }
-
-      const { data: latestJournal, error: journalError } = await supabase
-        .from('journal_entries')
-        .select('content, mood, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (journalError) {
-        console.error('[Bubble] 获取最新日记失败:', journalError);
-        throw journalError;
-      }
-
-      console.log('[Bubble] 最新日记：', latestJournal);
-      
-      if (latestJournal) {
-        console.log('[Bubble] 调用API参数:', {
-          journalContent: latestJournal.content,
-          mood: latestJournal.mood,
-          aiRoleName: aiRoleName,
-        });
-        
-        const response = await fetch('/api/generate-bubble-message', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            journalContent: latestJournal.content,
-            mood: latestJournal.mood,
-            aiRoleName: aiRoleName,
-          }),
-        });
-        
-        console.log('[Bubble] API响应状态:', response.status);
-        const text = await response.clone().text();
-        console.log('[Bubble] API响应原文:', text);
-        
-        if (response.ok) {
-          const data = await response.json();
-          setBubbleMessage(data.message);
-          bubbleSuccessRef.current = true;
-          console.log('[Bubble] ✅ 生成气泡消息成功:', data.message);
-          setLoadingBubble(false);
-        } else {
-          console.error('[Bubble] API调用失败:', response.status, text);
-          throw new Error(`API返回错误: ${response.status}`);
-        }
-      } else {
-        setBubbleMessage(`嘿！有什么想和我分享的吗？`);
-        bubbleSuccessRef.current = true;
-        console.log('[Bubble] ✅ 没有找到日记，使用默认气泡');
-        setLoadingBubble(false);
-      }
-    } catch (error) {
-      console.error('[Bubble] 生成气泡消息异常:', error);
-      setLoadingBubble(false);
-      
-      if (bubbleRetryCountRef.current < 3) {
-        console.log(`[Bubble] ⚠️ 请求失败，将进行重试...`);
-        setTimeout(() => {
-          generateBubbleMessage(aiRoleName, true);
-        }, 1000 * (bubbleRetryCountRef.current + 1));
-      } else {
-        setBubbleMessage(`你对${aiRoleName}的热情，真让人期待啊......`);
-      }
-    }
-  };
 
   useEffect(() => {
     if (hasInitializedRef.current) {
@@ -208,7 +101,6 @@ const You = () => {
 
         if (defaultRole) {
           setAiRole(defaultRole);
-          await generateBubbleMessage(defaultRole.name);
         } else {
           // Fallback to user's first role if '小兵' not found
           const { data: roleData, error: roleError } = await supabase
@@ -222,7 +114,6 @@ const You = () => {
           
           if (roleData) {
             setAiRole(roleData);
-            await generateBubbleMessage(roleData.name);
           } else {
             // Fallback to any first role
             const { data: firstRole } = await supabase
@@ -233,7 +124,6 @@ const You = () => {
             
             if (firstRole) {
               setAiRole(firstRole);
-              await generateBubbleMessage(firstRole.name);
             } else {
               toast({
                 title: "未找到角色",
@@ -265,8 +155,7 @@ const You = () => {
   const handleBubbleClick = () => {
     if (!aiRole) return;
     
-    const initialContent = bubbleMessage || aiRole.catchphrase || `嘿！有什么想和我分享的吗？`;
-    console.log('[Bubble Click] 用户点击气泡，传递初始消息:', initialContent);
+    const initialContent = aiRole.catchphrase || `嘿！有什么想和我分享的吗？`;
 
     navigate(`/chat/${aiRole.id}`, {
       state: { initialAIMessage: initialContent, from: '/you' }
