@@ -1,18 +1,26 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Calendar, Music, Archive, Heart, Edit3 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { FlipCard } from "@/components/wishes/FlipCard";
+import { CreateWishDialog } from "@/components/wishes/CreateWishDialog";
 
 interface AIRole {
   id: string;
   name: string;
   avatar_url: string;
   catchphrase: string;
+}
+
+interface Wish {
+  id: string;
+  title: string;
+  todo_list: string[];
+  created_at: string;
 }
 
 /**
@@ -29,6 +37,9 @@ const You = () => {
   const hasInitializedRef = useRef(false);
   const characterAreaRef = useRef<HTMLDivElement>(null);
   const [userName, setUserName] = useState<string>("小Q");
+  const [showWishes, setShowWishes] = useState(false);
+  const [wishes, setWishes] = useState<Wish[]>([]);
+  const [createWishOpen, setCreateWishOpen] = useState(false);
 
   // Calculate relationship days since first journal entry
   useEffect(() => {
@@ -170,6 +181,35 @@ const You = () => {
     }
   };
 
+  // Fetch wishes
+  const fetchWishes = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('wishes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setWishes((data as unknown as Wish[]) || []);
+    } catch (error) {
+      console.error('Error fetching wishes:', error);
+    }
+  };
+
+  const handleWishesClick = () => {
+    setShowWishes(true);
+    fetchWishes();
+  };
+
+  const handleCreateWishSuccess = () => {
+    fetchWishes();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-50 via-pink-50 to-purple-50">
@@ -253,7 +293,7 @@ const You = () => {
           </div>
 
           <div 
-            onClick={() => navigate('/journals')}
+            onClick={handleWishesClick}
             className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
           >
             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl" style={{
@@ -261,7 +301,7 @@ const You = () => {
             }}>
               💗
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">梦想清单</span>
+            <span className="text-[11px] text-[#4A4A4A]">心愿清单</span>
           </div>
 
           <div 
@@ -289,6 +329,68 @@ const You = () => {
           </div>
         </div>
       </div>
+
+      {/* Wishes View */}
+      {showWishes && (
+        <div className="fixed inset-0 z-50 bg-gradient-to-b from-purple-50 via-pink-50 to-purple-50 overflow-y-auto">
+          <div className="relative z-10 min-h-screen px-5 py-5 max-w-md mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6 mt-10">
+              <h2 className="text-2xl font-semibold text-[#4A4A4A]">心愿清单</h2>
+              <Button
+                onClick={() => setCreateWishOpen(true)}
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-[#9D85BE] to-[#C5A3D9] hover:from-[#8B75A8] hover:to-[#B593C8] p-0"
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
+            </div>
+
+            {/* Wishes Grid - 2 columns */}
+            {wishes.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 pb-24">
+                {wishes.map((wish) => (
+                  <FlipCard
+                    key={wish.id}
+                    title={wish.title}
+                    todoList={wish.todo_list || []}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20">
+                <p className="text-muted-foreground mb-4">还没有心愿</p>
+                <Button
+                  onClick={() => setCreateWishOpen(true)}
+                  className="bg-gradient-to-r from-[#9D85BE] to-[#C5A3D9] hover:from-[#8B75A8] hover:to-[#B593C8]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  创建第一个心愿
+                </Button>
+              </div>
+            )}
+
+            {/* Back Button */}
+            <div className="fixed bottom-24 left-0 right-0 px-5 z-10">
+              <div className="max-w-md mx-auto">
+                <Button
+                  onClick={() => setShowWishes(false)}
+                  variant="outline"
+                  className="w-full bg-white/80 backdrop-blur-md border-white/40"
+                >
+                  返回
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Wish Dialog */}
+      <CreateWishDialog
+        open={createWishOpen}
+        onOpenChange={setCreateWishOpen}
+        onSuccess={handleCreateWishSuccess}
+      />
 
       <BottomNav />      {/* Add keyframes for animations */}
       <style>{`
