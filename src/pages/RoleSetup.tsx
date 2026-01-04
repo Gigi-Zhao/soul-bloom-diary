@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { CHAT_MODELS } from "@/../api/model-config";
+import { CHAT_MODELS } from "@/lib/model-config";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -3,7 +3,7 @@
  * 根据最新日记生成吸引用户聊天的气泡消息
  */
 
-import { getChatModelsForRequest } from './model-config';
+import { getChatModelsForRequest } from '../src/lib/model-config.js';
 
 // 动态获取前端站点 URL（用于 HTTP-Referer）
 function getSiteUrl(req: VercelRequestLike): string {

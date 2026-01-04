@@ -81,14 +81,15 @@ export const CreateWishDialog = ({ open, onOpenChange, onSuccess }: CreateWishDi
       let response: Response;
       try {
         response = await makeRequest(primaryEndpoint);
-        if (response.status === 404 && primaryEndpoint !== fallbackEndpoint) {
-          console.log('[CreateWish] ⚠️ 主端点返回404，尝试备用端点...');
+        // 如果主端点失败（404, 500等），尝试备用端点
+        if (!response.ok && primaryEndpoint !== fallbackEndpoint) {
+          console.log(`[CreateWish] ⚠️ 主端点返回${response.status}，尝试备用端点...`);
           response = await makeRequest(fallbackEndpoint);
         }
       } catch (error) {
         // 如果主端点网络错误，尝试备用端点
         if (primaryEndpoint !== fallbackEndpoint) {
-          console.log('[CreateWish] ⚠️ 主端点网络错误，尝试备用端点...');
+          console.log('[CreateWish] ⚠️ 主端点网络错误，尝试备用端点...', error);
           response = await makeRequest(fallbackEndpoint);
         } else {
           throw error;
@@ -149,7 +150,7 @@ export const CreateWishDialog = ({ open, onOpenChange, onSuccess }: CreateWishDi
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('wishes')
         .insert({
           user_id: user.id,

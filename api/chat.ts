@@ -3,7 +3,7 @@
  * 修改此处的常量来更换使用的模型
  */
 
-import { getChatModelsForRequest } from './model-config';
+import { getChatModelsForRequest } from '../src/lib/model-config.js';
 
 interface VercelRequestLike {
     method?: string;

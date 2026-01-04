@@ -2,7 +2,7 @@
  * 模型配置
  * 修改此处的常量来更换使用的图片解析模型
  */
-import { getVisionModelsForRequest } from './model-config';
+import { getVisionModelsForRequest } from '../src/lib/model-config.js';
 
 interface VercelRequestLike {
     method?: string;

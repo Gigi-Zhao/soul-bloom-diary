@@ -3,7 +3,7 @@
  * Generates AI role comments for journal entries
  */
 
-import { getChatModelsForRequest } from './model-config';
+import { getChatModelsForRequest } from '../src/lib/model-config.js';
 
 interface VercelRequestLike {
   method?: string;
@@ -171,7 +171,7 @@ ${journalContent}
       .replace(/[ \t]+/g, ' ')
       // 去除行首行尾空格（但保留换行符）
       .split('\n')
-      .map(line => line.trim())
+      .map((line: string) => line.trim())
       .join('\n')
       // 去除超过两个的连续换行符
       .replace(/\n{3,}/g, '\n\n')

@@ -2,7 +2,7 @@
  * 生成对话标题的 API 端点（非流式响应）
  */
 
-import { getChatModelsForRequest } from './model-config';
+import { getChatModelsForRequest } from '../src/lib/model-config.js';
 
 interface VercelRequestLike {
     method?: string;

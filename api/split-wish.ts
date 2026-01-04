@@ -3,7 +3,7 @@
  * 使用AI将心愿拆解为待办清单
  */
 
-import { getChatModelsForRequest } from './model-config';
+import { getChatModelsForRequest } from '../src/lib/model-config.js';
 
 interface VercelRequestLike {
     method?: string;
