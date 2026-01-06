@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BottomNav } from "@/components/ui/bottom-nav";
@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { FlipCard } from "@/components/wishes/FlipCard";
 import { CreateWishDialog } from "@/components/wishes/CreateWishDialog";
+import { WeeklyLetters } from "@/components/letters/WeeklyLetters";
+import { initializeWeeklyLetters } from "@/lib/weekly-letter-utils";
 
 interface AIRole {
   id: string;
@@ -20,6 +22,14 @@ interface Wish {
   id: string;
   title: string;
   todo_list: string[];
+  created_at: string;
+}
+
+interface WeeklyLetter {
+  id: string;
+  week_start_date: string;
+  week_end_date: string;
+  content: string;
   created_at: string;
 }
 
@@ -40,6 +50,9 @@ const You = () => {
   const [showWishes, setShowWishes] = useState(false);
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [createWishOpen, setCreateWishOpen] = useState(false);
+  const [showLetters, setShowLetters] = useState(false);
+  const [weeklyLetters, setWeeklyLetters] = useState<WeeklyLetter[]>([]);
+  const [isInitializingLetters, setIsInitializingLetters] = useState(false);
 
   // Calculate relationship days since first journal entry
   useEffect(() => {
@@ -210,6 +223,74 @@ const You = () => {
     fetchWishes();
   };
 
+  // Fetch weekly letters
+  const fetchWeeklyLetters = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('weekly_letters')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('week_start_date', { ascending: false });
+
+      if (error) throw error;
+      setWeeklyLetters((data as unknown as WeeklyLetter[]) || []);
+    } catch (error) {
+      console.error('Error fetching weekly letters:', error);
+    }
+  };
+
+  const handleLettersClick = async () => {
+    setShowLetters(true);
+    
+    // Fetch existing letters
+    await fetchWeeklyLetters();
+    
+    // Check if we need to initialize letters
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingLetters } = await (supabase as any)
+      .from('weekly_letters')
+      .select('id')
+      .eq('user_id', user.id);
+    
+    // If no letters exist, initialize them
+    if (!existingLetters || existingLetters.length === 0) {
+      setIsInitializingLetters(true);
+      
+      toast({
+        title: "正在生成历史信件",
+        description: "这可能需要几分钟时间，请稍候...",
+      });
+      
+      try {
+        const count = await initializeWeeklyLetters(user.id);
+        
+        toast({
+          title: "生成完成",
+          description: `成功生成 ${count} 封周度总结信件`,
+        });
+        
+        // Refresh letters
+        await fetchWeeklyLetters();
+      } catch (error) {
+        console.error('Error initializing letters:', error);
+        toast({
+          title: "生成失败",
+          description: "部分信件生成失败，请稍后重试",
+          variant: "destructive",
+        });
+      } finally {
+        setIsInitializingLetters(false);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-50 via-pink-50 to-purple-50">
@@ -305,7 +386,7 @@ const You = () => {
           </div>
 
           <div 
-            onClick={() => navigate('/profile')}
+            onClick={handleLettersClick}
             className="flex flex-col items-center gap-2 cursor-pointer transition-transform duration-200 active:scale-90"
           >
             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl" style={{
@@ -313,7 +394,7 @@ const You = () => {
             }}>
               🧸
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">纪念物</span>
+            <span className="text-[11px] text-[#4A4A4A]">纪念</span>
           </div>
 
           <div 
@@ -381,6 +462,38 @@ const You = () => {
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Weekly Letters View */}
+      {showLetters && (
+        <div className="fixed inset-0 z-50 bg-gradient-to-b from-purple-50 via-pink-50 to-purple-50 overflow-y-auto">
+          <div className="relative z-10 min-h-screen px-5 py-5 max-w-md mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6 mt-10">
+              <Button
+                onClick={() => setShowLetters(false)}
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <h2 className="text-2xl font-semibold text-[#4A4A4A]">时光信箱</h2>
+              <div className="w-10" /> {/* Spacer for centering */}
+            </div>
+
+            {/* Weekly Letters Component */}
+            {isInitializingLetters ? (
+              <div className="min-h-[60vh] flex flex-col items-center justify-center">
+                <div className="text-6xl mb-4 animate-bounce">✨</div>
+                <p className="text-lg text-[#9D85BE] font-medium mb-2">正在生成历史信件...</p>
+                <p className="text-sm text-[#999]">请耐心等待，这可能需要几分钟</p>
+              </div>
+            ) : (
+              <WeeklyLetters letters={weeklyLetters} />
+            )}
           </div>
         </div>
       )}
