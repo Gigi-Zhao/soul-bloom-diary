@@ -394,7 +394,7 @@ const You = () => {
             }}>
               🧸
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">纪念</span>
+            <span className="text-[11px] text-[#4A4A4A]">时光信箱</span>
           </div>
 
           <div 
@@ -406,7 +406,7 @@ const You = () => {
             }}>
               💭
             </div>
-            <span className="text-[11px] text-[#4A4A4A]">想法</span>
+            <span className="text-[11px] text-[#4A4A4A]">白日梦</span>
           </div>
         </div>
       </div>
