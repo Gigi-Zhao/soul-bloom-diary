@@ -1,9 +1,20 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, History, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // 消息角色类型
 type MessageRole = 'narrator' | 'npc' | 'user';
@@ -36,6 +47,18 @@ interface AIResponse {
 
 // 状态类型
 type DreamStatus = 'idle' | 'loading' | 'typing';
+
+// 梦境记录接口
+interface DaydreamRecord {
+  id: string;
+  title: string;
+  setup: DreamSetup;
+  messages: DreamMessage[];
+  current_chapter: number;
+  is_completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 // 章节配置
 const CHAPTERS = [
@@ -73,6 +96,14 @@ const Daydream = () => {
   const [chapterProgress, setChapterProgress] = useState(1);
   const [status, setStatus] = useState<DreamStatus>('idle');
   const [userInput, setUserInput] = useState('');
+  
+  // 历史记录相关状态
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyRecords, setHistoryRecords] = useState<DaydreamRecord[]>([]);
+  const [currentDreamId, setCurrentDreamId] = useState<string | null>(null);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -430,8 +461,169 @@ const Daydream = () => {
       setSetup(prev => ({ ...prev, [field]: defaultExamples[field] }));
     }
   };
+    // 加载历史记录
+  const loadHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('daydreams')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setHistoryRecords(data || []);
+    } catch (error) {
+      console.error('加载历史记录失败:', error);
+      toast({
+        title: "加载失败",
+        description: "无法加载历史记录",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
   
-  // 清理函数
+  // 保存当前梦境
+  const saveDream = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "请先登录",
+          description: "需要登录后才能保存梦境",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // 生成标题：使用setup.oneSentence的前20个字符
+      const title = setup.oneSentence.length > 20 
+        ? setup.oneSentence.substring(0, 20) + '...'
+        : setup.oneSentence;
+      
+      const dreamData = {
+        user_id: user.id,
+        title,
+        setup,
+        messages,
+        current_chapter: chapterProgress,
+        is_completed: chapterProgress >= 5
+      };
+      
+      if (currentDreamId) {
+        // 更新现有梦境
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
+          .from('daydreams')
+          .update(dreamData)
+          .eq('id', currentDreamId);
+        
+        if (error) throw error;
+      } else {
+        // 创建新梦境
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+          .from('daydreams')
+          .insert([dreamData])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        if (data) {
+          setCurrentDreamId(data.id);
+        }
+      }
+      
+      setHasUnsavedChanges(false);
+      toast({
+        title: "保存成功",
+        description: "梦境已保存",
+      });
+    } catch (error) {
+      console.error('保存梦境失败:', error);
+      toast({
+        title: "保存失败",
+        description: "无法保存梦境",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // 加载历史梦境
+  const loadDream = async (record: DaydreamRecord) => {
+    setCurrentDreamId(record.id);
+    setSetup(record.setup);
+    setMessages(record.messages);
+    setChapterProgress(record.current_chapter);
+    setPhase('story');
+    setShowHistory(false);
+    setHasUnsavedChanges(false);
+    
+    toast({
+      title: "梦境已加载",
+      description: "可以继续这场梦了",
+    });
+  };
+  
+  // 删除梦境
+  const deleteDream = async (id: string) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('daydreams')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      setHistoryRecords(prev => prev.filter(r => r.id !== id));
+      toast({
+        title: "删除成功",
+        description: "梦境已删除",
+      });
+    } catch (error) {
+      console.error('删除梦境失败:', error);
+      toast({
+        title: "删除失败",
+        description: "无法删除梦境",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // 处理返回按钮
+  const handleBack = () => {
+    if (phase === 'story' && messages.length > 0 && !currentDreamId) {
+      setShowSaveDialog(true);
+    } else {
+      navigate(-1);
+    }
+  };
+  
+  // 确认保存并离开
+  const handleSaveAndLeave = async () => {
+    await saveDream();
+    navigate(-1);
+  };
+  
+  // 放弃并离开
+  const handleDiscardAndLeave = () => {
+    navigate(-1);
+  };
+  
+  // 监听消息变化，标记为有未保存的更改
+  useEffect(() => {
+    if (phase === 'story' && messages.length > 0) {
+      setHasUnsavedChanges(true);
+    }
+  }, [messages, phase]);
+    // 清理函数
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
@@ -455,7 +647,7 @@ const Daydream = () => {
         </div>
         
         <div className="relative z-10 container mx-auto px-5 py-8 max-w-2xl">
-          <div className="flex items-center mb-8 mt-10">
+          <div className="flex items-center justify-between mb-8 mt-10">
             <Button
               variant="ghost"
               size="icon"
@@ -463,6 +655,19 @@ const Daydream = () => {
               className="text-[#4A4A4A] hover:bg-white/50"
             >
               <ArrowLeft className="h-6 w-6" />
+            </Button>
+            
+            {/* 历史记录胶囊按钮 */}
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowHistory(true);
+                loadHistory();
+              }}
+              className="text-[#4A4A4A] hover:bg-white/50 flex items-center gap-2 rounded-full px-4 py-2 bg-white/30 backdrop-blur-sm border border-white/50 hover:bg-white/60 transition-all"
+            >
+              <History className="h-4 w-4" />
+              <span className="text-sm font-medium">梦境记录</span>
             </Button>
           </div>
           
@@ -556,7 +761,7 @@ const Daydream = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="text-[#4A4A4A] hover:bg-white/50"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -575,6 +780,19 @@ const Daydream = () => {
                 </span>
               </div>
             </div>
+            
+            {/* 历史记录胶囊按钮 */}
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowHistory(true);
+                loadHistory();
+              }}
+              className="text-[#4A4A4A] hover:bg-white/50 flex items-center gap-2 rounded-full px-4 py-2 bg-white/30 backdrop-blur-sm border border-white/50 hover:bg-white/60 transition-all"
+            >
+              <History className="h-4 w-4" />
+              <span className="text-sm font-medium">梦境记录</span>
+            </Button>
           </div>
         </div>
       </div>
@@ -701,6 +919,118 @@ const Daydream = () => {
           </div>
         </div>
       </div>
+      
+      {/* 历史记录弹窗 */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            {/* 弹窗头部 */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-2xl font-semibold text-[#4A4A4A]">梦境记录</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowHistory(false)}
+                className="text-[#4A4A4A] hover:bg-gray-100"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            
+            {/* 历史记录列表 */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {isLoadingHistory ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-[#999]">加载中...</div>
+                </div>
+              ) : historyRecords.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <History className="h-16 w-16 text-[#999] mb-4" />
+                  <p className="text-[#999]">还没有梦境记录</p>
+                  <p className="text-sm text-[#999] mt-2">开始做梦后保存即可查看历史记录</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {historyRecords.map((record) => (
+                    <div
+                      key={record.id}
+                      className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5 border border-purple-100 hover:shadow-md transition-all cursor-pointer group"
+                      onClick={() => loadDream(record)}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-medium text-[#4A4A4A] mb-1 group-hover:text-[#9D85BE] transition-colors">
+                            {record.title}
+                          </h3>
+                          <p className="text-sm text-[#999]">
+                            {new Date(record.created_at).toLocaleDateString('zh-CN', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteDream(record.id);
+                          }}
+                          className="text-[#999] hover:text-red-500 hover:bg-red-50"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#999]">章节进度:</span>
+                          <span className="font-medium text-[#4A4A4A]">
+                            {CHAPTERS.find(c => c.id === record.current_chapter)?.name || '未知'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#999]">消息数量:</span>
+                          <span className="font-medium text-[#4A4A4A]">{record.messages.length}</span>
+                        </div>
+                        {record.is_completed && (
+                          <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            <Sparkles className="h-3 w-3" />
+                            已完成
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 保存对话框 */}
+      <AlertDialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>是否保存这场梦？</AlertDialogTitle>
+            <AlertDialogDescription>
+              你可以选择保存这场梦以便之后继续，或者放弃这场梦的记录。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDiscardAndLeave} className="rounded-full">
+              放弃
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleSaveAndLeave} className="rounded-full bg-gradient-to-r from-[#9D85BE] to-[#C5A3D9] hover:from-[#8B75A8] hover:to-[#B593C8]">
+              保存
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       {/* CSS动画 */}
       <style>{`
