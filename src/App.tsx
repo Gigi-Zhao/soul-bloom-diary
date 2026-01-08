@@ -14,6 +14,7 @@ import ConversationHistory from "./pages/ConversationHistory";
 import CreateFriend from "./pages/CreateFriend";
 import RoleSetup from "./pages/RoleSetup";
 import Profile from "./pages/Profile";
+import Daydream from "./pages/Daydream";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const CachedPages = () => {
         <Route path="/conversation-history/:roleId" element={<ConversationHistory />} />
         <Route path="/create-friend" element={<CreateFriend />} />
         <Route path="/create-friend/setup" element={<RoleSetup />} />
+        <Route path="/daydream" element={<Daydream />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     );
