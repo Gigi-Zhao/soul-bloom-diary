@@ -49,6 +49,14 @@ const Daydream = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  // 默认示例内容
+  const defaultExamples = {
+    identity: '一名普通的银行职员',
+    dailyLife: '每天对着电脑处理枯燥的报表',
+    person: '一位神秘的陌生人',
+    tone: '温暖治愈'
+  };
+  
   // 状态管理
   const [phase, setPhase] = useState<'setup' | 'story'>('setup');
   const [setup, setSetup] = useState<DreamSetup>({
@@ -111,12 +119,21 @@ const Daydream = () => {
   
   // 处理打字队列
   useEffect(() => {
-    if (typingQueueRef.current.length > 0 && !isTyping && status !== 'loading') {
+    console.log('[Daydream] 🔍 检查打字队列:', {
+      queueLength: typingQueueRef.current.length,
+      isTyping,
+      status
+    });
+    
+    if (typingQueueRef.current.length > 0 && !isTyping && status === 'idle') {
       const nextMessage = typingQueueRef.current.shift();
       if (nextMessage) {
+        console.log('[Daydream] ⌨️ 开始打字:', nextMessage.role);
         setStatus('typing');
         typeMessage(nextMessage).then(() => {
+          console.log('[Daydream] ✅ 打字完成');
           if (typingQueueRef.current.length === 0) {
+            console.log('[Daydream] 📭 队列为空，设置为idle');
             setStatus('idle');
           }
         });
@@ -199,12 +216,14 @@ const Daydream = () => {
         });
       }
       
-      // 等待打字完成后再显示选项
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // 设置选项（稍后显示，等打字完成）
+      const estimatedTypingTime = ((data.narrator?.length || 0) + (data.npc_say?.length || 0)) * 30 + 500;
+      console.log('[Daydream] ⏱️ 预计打字时间:', estimatedTypingTime, 'ms');
       
-      // 设置选项
-      console.log('[Daydream] 🎯 设置选项:', data.options);
-      setCurrentOptions(data.options || []);
+      setTimeout(() => {
+        console.log('[Daydream] 🎯 设置选项:', data.options);
+        setCurrentOptions(data.options || []);
+      }, estimatedTypingTime);
       
       // 检查是否进入下一章
       if (data.chapter_end && chapterProgress < CHAPTERS.length) {
@@ -217,6 +236,9 @@ const Daydream = () => {
         setChapterProgress(data.current_chapter);
       }
       
+      // 重置状态，让打字效果可以开始
+      console.log('[Daydream] 🔄 重置状态为idle');
+      setStatus('idle');
       console.log('[Daydream] ✅ API调用完成');
       
     } catch (error: unknown) {
@@ -288,6 +310,14 @@ const Daydream = () => {
     }
   };
   
+  // 处理Tab键补全
+  const handleTabComplete = (e: React.KeyboardEvent<HTMLInputElement>, field: keyof typeof setup) => {
+    if (e.key === 'Tab' && !setup[field]) {
+      e.preventDefault();
+      setSetup(prev => ({ ...prev, [field]: defaultExamples[field] }));
+    }
+  };
+  
   // 清理函数
   useEffect(() => {
     return () => {
@@ -328,13 +358,18 @@ const Daydream = () => {
               我想做一场白日梦...
             </h1>
             
+            <p className="text-center text-sm text-[#999] mb-6 animate-fade-in">
+              💡 提示：按 <kbd className="px-2 py-1 bg-white/60 rounded text-xs font-mono">Tab</kbd> 键快速填充示例内容
+            </p>
+            
             <div className="space-y-6 animate-fade-in-up">
               <div className="space-y-2">
                 <label className="text-base font-medium text-[#666]">我现在的身份是</label>
                 <Input
-                  placeholder="例如：一名普通的银行职员"
+                  placeholder="例如：一名普通的银行职员 (按Tab补全)"
                   value={setup.identity}
                   onChange={(e) => setSetup(prev => ({ ...prev, identity: e.target.value }))}
+                  onKeyDown={(e) => handleTabComplete(e, 'identity')}
                   className="bg-white/60 border-white/80 text-[#4A4A4A] placeholder:text-[#999] focus:bg-white/80"
                 />
               </div>
@@ -342,9 +377,10 @@ const Daydream = () => {
               <div className="space-y-2">
                 <label className="text-base font-medium text-[#666]">我的平淡日常是</label>
                 <Input
-                  placeholder="例如：每天对着电脑处理枯燥的报表"
+                  placeholder="例如：每天对着电脑处理枯燥的报表 (按Tab补全)"
                   value={setup.dailyLife}
                   onChange={(e) => setSetup(prev => ({ ...prev, dailyLife: e.target.value }))}
+                  onKeyDown={(e) => handleTabComplete(e, 'dailyLife')}
                   className="bg-white/60 border-white/80 text-[#4A4A4A] placeholder:text-[#999] focus:bg-white/80"
                 />
               </div>
@@ -352,9 +388,10 @@ const Daydream = () => {
               <div className="space-y-2">
                 <label className="text-base font-medium text-[#666]">我想遇到的人是</label>
                 <Input
-                  placeholder="例如：一位神秘的陌生人"
+                  placeholder="例如：一位神秘的陌生人 (按Tab补全)"
                   value={setup.person}
                   onChange={(e) => setSetup(prev => ({ ...prev, person: e.target.value }))}
+                  onKeyDown={(e) => handleTabComplete(e, 'person')}
                   className="bg-white/60 border-white/80 text-[#4A4A4A] placeholder:text-[#999] focus:bg-white/80"
                 />
               </div>
@@ -362,9 +399,10 @@ const Daydream = () => {
               <div className="space-y-2">
                 <label className="text-base font-medium text-[#666]">故事的基调是</label>
                 <Input
-                  placeholder="例如：温暖治愈 / 悬疑刺激 / 浪漫甜蜜"
+                  placeholder="例如：温暖治愈 / 悬疑刺激 / 浪漫甜蜜 (按Tab补全)"
                   value={setup.tone}
                   onChange={(e) => setSetup(prev => ({ ...prev, tone: e.target.value }))}
+                  onKeyDown={(e) => handleTabComplete(e, 'tone')}
                   className="bg-white/60 border-white/80 text-[#4A4A4A] placeholder:text-[#999] focus:bg-white/80"
                 />
               </div>
@@ -601,6 +639,11 @@ const Daydream = () => {
         
         .animate-fade-in-up {
           animation: fade-in-up 0.4s ease-out;
+        }
+        
+        kbd {
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          border: 1px solid rgba(0,0,0,0.1);
         }
       `}</style>
     </div>
