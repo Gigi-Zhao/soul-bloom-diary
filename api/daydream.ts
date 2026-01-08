@@ -283,9 +283,17 @@ function buildMessages(systemPrompt: string, history: MessageHistory[], isInitia
                 }
             } else if (msg.role === 'user') {
                 // 用户的选择
+                let content = msg.content;
+                
+                // 如果是最后一条消息（即当前用户的最新输入），添加强力引导
+                if (i === history.length - 1) {
+                    content += "\n\n（请根据由于我的这个行动/选择，继续推进剧情。请严格按照JSON格式返回，包含narrator, npc_say(可选), options, chapter_end等字段）";
+                    console.log('[Daydream API] 🔧 已为最新用户消息添加引导提示');
+                }
+
                 messages.push({
                     role: "user",
-                    content: msg.content
+                    content: content
                 });
             }
         }
