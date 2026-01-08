@@ -554,12 +554,24 @@ const Daydream = () => {
               {currentOptions.map((option, index) => (
                 <button
                   key={index}
-                  onClick={() => handleUserChoice(option)}
-                  className="w-full text-left bg-white/70 hover:bg-white/90 border border-white/80 rounded-2xl px-4 py-3 text-[#4A4A4A] transition-all hover:scale-[1.01] shadow-sm"
+                  onClick={() => {
+                    console.log('[Daydream] 🖱️ 按钮被点击');
+                    console.log('[Daydream] 选项内容:', option);
+                    console.log('[Daydream] 当前status:', status);
+                    handleUserChoice(option);
+                  }}
+                  className="w-full text-left bg-white/70 hover:bg-white/90 border border-white/80 rounded-2xl px-4 py-3 text-[#4A4A4A] transition-all hover:scale-[1.01] shadow-sm cursor-pointer"
                 >
                   {option}
                 </button>
               ))}
+            </div>
+          )}
+          
+          {/* 调试信息 */}
+          {currentOptions.length > 0 && status !== 'idle' && (
+            <div className="mb-3 p-3 bg-yellow-100 rounded text-xs text-gray-600">
+              ⚠️ 选项已隐藏 - 当前状态: {status}
             </div>
           )}
           
