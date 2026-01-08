@@ -18,6 +18,7 @@ interface DreamMessage {
 
 // 用户设定
 interface DreamSetup {
+  oneSentence: string;   // 一句话故事
   identity: string;      // 身份
   dailyLife: string;     // 日常
   person: string;        // 想遇到的人
@@ -51,6 +52,7 @@ const Daydream = () => {
   
   // 默认示例内容
   const defaultExamples = {
+    oneSentence: '想要逃离枯燥的现实，去往一个充满魔法的世界',
     identity: '一名普通的银行职员',
     dailyLife: '每天对着电脑处理枯燥的报表',
     person: '一位神秘的陌生人',
@@ -60,6 +62,7 @@ const Daydream = () => {
   // 状态管理
   const [phase, setPhase] = useState<'setup' | 'story'>('setup');
   const [setup, setSetup] = useState<DreamSetup>({
+    oneSentence: '',
     identity: '',
     dailyLife: '',
     person: '',
@@ -120,11 +123,10 @@ const Daydream = () => {
   
   // 处理打字队列
   useEffect(() => {
-    console.log('[Daydream] 🔍 检查打字队列:', {
-      queueLength: typingQueueRef.current.length,
-      isTyping,
-      status
-    });
+    // 减少日志输出，仅在队列非空或状态变化关键时刻输出
+    if (typingQueueRef.current.length > 0 || status === 'typing') {
+      // console.log('[Daydream] 🔍 检查打字队列:', { queueLength: typingQueueRef.current.length, isTyping, status });
+    }
     
     // 如果队列为空且不在打字中，确保状态为idle
     if (typingQueueRef.current.length === 0 && !isTyping && status === 'typing') {
@@ -140,13 +142,11 @@ const Daydream = () => {
         console.log('[Daydream] ⌨️ 开始打字:', nextMessage.role);
         setStatus('typing');
         typeMessage(nextMessage).then(() => {
-          console.log('[Daydream] ✅ 打字完成，检查队列');
           // 打字完成后，触发重新检查队列（通过改变状态触发useEffect）
           if (typingQueueRef.current.length === 0) {
             console.log('[Daydream] 📭 没有更多消息，设置为idle');
             setStatus('idle');
           }
-          // 如果队列还有消息，保持typing状态，让useEffect再次触发
         });
       }
     }
@@ -158,12 +158,12 @@ const Daydream = () => {
   };
   
   // 调用AI API
-  const callDaydreamAPI = async (isInitial: boolean = false) => {
+  const callDaydreamAPI = async (isInitial: boolean = false, currentMessages: DreamMessage[] = messages) => {
     console.log('[Daydream] 🚀 开始调用API');
     console.log('[Daydream] isInitial:', isInitial);
     console.log('[Daydream] setup:', setup);
     console.log('[Daydream] currentChapter:', chapterProgress);
-    console.log('[Daydream] messages history:', messages);
+    console.log('[Daydream] messages history (count):', currentMessages.length);
     
     setStatus('loading');
     setCurrentOptions([]);
@@ -175,7 +175,7 @@ const Daydream = () => {
       console.log('[Daydream] 📡 准备发送请求到 /api/daydream');
       const requestBody = {
         setup: setup,
-        history: messages.map(m => ({
+        history: currentMessages.map(m => ({
           role: m.role,
           content: m.content
         })),
@@ -185,14 +185,42 @@ const Daydream = () => {
       
       console.log('[Daydream] 📤 请求体:', requestBody);
       
-      const response = await fetch('/api/daydream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-        signal: abortControllerRef.current.signal
-      });
+      // 使用与Chat相同的endpoint逻辑
+      const apiBase = (import.meta as { env?: { VITE_API_BASE_URL?: string } })?.env?.VITE_API_BASE_URL ?? '';
+      const primaryEndpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/api/daydream` : '/api/daydream';
+      const fallbackEndpoint = 'https://soul-bloom-diary.vercel.app/api/daydream';
+      
+      console.log('[Daydream] 🎯 主端点:', primaryEndpoint);
+      console.log('[Daydream] 🔄 备用端点:', fallbackEndpoint);
+      
+      const makeRequest = async (url: string) => {
+        console.log('[Daydream] 📞 尝试请求:', url);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+          return res;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+      
+      // 先尝试主端点
+      let response = await makeRequest(primaryEndpoint);
+      
+      // 如果404且有备用端点，尝试备用
+      if (response.status === 404 && primaryEndpoint !== fallbackEndpoint) {
+        console.log('[Daydream] ⚠️ 主端点404，尝试备用端点');
+        response = await makeRequest(fallbackEndpoint);
+      }
       
       console.log('[Daydream] 📥 收到响应:', response.status, response.statusText);
       
@@ -202,9 +230,82 @@ const Daydream = () => {
         throw new Error(`API请求失败: ${response.status} ${errorText}`);
       }
       
-      const data: AIResponse = await response.json();
-      console.log('[Daydream] 📦 解析的数据:', data);
+      const rawData: AIResponse = await response.json();
+      console.log('[Daydream] 📦 原始数据:', rawData);
       
+      // 客户端二次解析逻辑（以防后端使用的是旧版并未能正确解析复杂文本）
+      const data = { ...rawData };
+      
+      // 使用正则检查是否包含未解析的标记（更宽松的匹配）
+      const hasUnparsedMarkers = data.narrator && (
+        /(?:旁白|Narrator|对话|NPC|Say|选项|Options)\s*[:：]/.test(data.narrator)
+      );
+
+      if (hasUnparsedMarkers) {
+        console.log('[Daydream] ⚠️ 检测到未解析的结构化文本，尝试客户端修复...');
+        console.log('[Daydream] 📝 原始内容片段:', data.narrator?.substring(0, 50));
+        
+        try {
+            const cleanContent = data.narrator
+                .replace(/```json\s*/g, '')
+                .replace(/```\s*/g, '')
+                .replace(/\*\*/g, '')
+                .trim();
+                
+            const narratorMatch = cleanContent.match(/(?:旁白|Narrator)(?:\s*[：:]|\s+)\s*([\s\S]*?)(?=(?:对话|NPC|Say|选项|Options)(?:\s*[：:]|\s+)|$)/i);
+            const npcMatch = cleanContent.match(/(?:对话|NPC|Say)(?:\s*[：:]|\s+)\s*([\s\S]*?)(?=(?:选项|Options)(?:\s*[：:]|\s+)|$)/i);
+            const optionsMatch = cleanContent.match(/(?:选项|Options)(?:\s*[：:]|\s+)\s*([\s\S]*?)$/i);
+            
+            if (narratorMatch || npcMatch || optionsMatch) {
+                 if (narratorMatch) {
+                     data.narrator = narratorMatch[1].trim();
+                 } else if (!npcMatch && !optionsMatch) {
+                     // 只有文本，去掉可能的"旁白："前缀
+                     data.narrator = cleanContent.replace(/^(?:旁白|Narrator)(?:\s*[：:]|\s+)/i, '').trim();
+                 } else {
+                    // 有其他部分，尝试作为第一部分
+                    const parts = cleanContent.split(/(?:对话|NPC|Say|选项|Options)(?:\s*[：:]|\s+)/i);
+                    if (parts.length > 0) {
+                        data.narrator = parts[0].trim().replace(/^(?:旁白|Narrator)(?:\s*[：:]|\s+)/i, '');
+                    }
+                 }
+                 
+                 if (npcMatch) {
+                     data.npc_say = npcMatch[1].trim();
+                 }
+                 
+                 const optionsText = optionsMatch ? optionsMatch[1].trim() : "";
+                 if (optionsText) {
+                    let parsedOptions: string[] = [];
+                    // 尝试解析JSON
+                    if (optionsText.startsWith('[')) {
+                        try {
+                            parsedOptions = JSON.parse(optionsText);
+                        } catch (e) {}
+                    }
+                    // 尝试解析列表
+                    if (parsedOptions.length === 0) {
+                         parsedOptions = optionsText.split(/(?:\d+[.、)]|[ABC][.、)])\s*/).filter(s => s.trim()).map(s => s.trim());
+                    }
+                    // 尝试按行
+                    if (parsedOptions.length === 0) {
+                         parsedOptions = optionsText.split(/[\n;；]/).filter(s => s.trim().length > 2)
+                            .map(s => s.replace(/^[-*•"'`\s\d.、)）]+/, '').replace(/["'`]\s*$/, '').trim());
+                    }
+                    
+                    if (parsedOptions.length > 0) {
+                        data.options = parsedOptions.slice(0, 3);
+                    }
+                 }
+                 console.log('[Daydream] ✅ 客户端修复完成:', data);
+            }
+        } catch (e) {
+            console.warn('[Daydream] ⚠️ 客户端修复失败:', e);
+        }
+      }
+      
+      console.log('[Daydream] 📦 最终使用数据:', data);
+
       // 处理旁白
       if (data.narrator) {
         console.log('[Daydream] 📖 添加旁白消息');
@@ -274,7 +375,7 @@ const Daydream = () => {
   // 开始白日梦
   const handleStartDream = () => {
     console.log('[Daydream] 🌟 用户点击开始做梦');
-    if (!setup.identity || !setup.dailyLife || !setup.person || !setup.tone) {
+    if (!setup.oneSentence || !setup.identity || !setup.dailyLife || !setup.person || !setup.tone) {
       console.warn('[Daydream] ⚠️ 设定信息不完整');
       toast({
         title: "请填写完整",
@@ -306,12 +407,13 @@ const Daydream = () => {
       timestamp: Date.now()
     };
     
-    console.log('[Daydream] 💭 添加用户消息到历史');
-    setMessages(prev => [...prev, userMessage]);
+    console.log('[Daydream] 💭 添加用户消息到历史:', choice);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setUserInput('');
     
-    // 调用API
-    callDaydreamAPI(false);
+    // 调用API，传入最新的消息历史
+    callDaydreamAPI(false, newMessages);
   };
   
   // 处理发送按钮
@@ -369,9 +471,18 @@ const Daydream = () => {
               我想做一场白日梦...
             </h1>
             
-            <p className="text-center text-sm text-[#999] mb-6 animate-fade-in">
-              💡 提示：按 <kbd className="px-2 py-1 bg-white/60 rounded text-xs font-mono">Tab</kbd> 键快速填充示例内容
-            </p>
+            <div className="mb-8 animate-fade-in flex flex-col items-center">
+              <input
+                type="text"
+                placeholder="在这输入你想做的一场什么样的梦..."
+                value={setup.oneSentence}
+                onChange={(e) => setSetup(prev => ({ ...prev, oneSentence: e.target.value }))}
+                className="w-full max-w-lg text-center bg-transparent border-b-2 border-[#9D85BE]/50 focus:border-[#9D85BE] outline-none px-2 py-2 text-lg text-[#4A4A4A] placeholder:text-[#999/60] transition-colors"
+              />
+              <p className="text-xs text-[#999] mt-2">
+                💡 提示：按 Tab 键可快速填写所有示例内容
+              </p>
+            </div>
             
             <div className="space-y-6 animate-fade-in-up">
               <div className="space-y-2">
@@ -441,44 +552,28 @@ const Daydream = () => {
       {/* 顶部进度条 */}
       <div className="sticky top-0 z-10 bg-white/50 backdrop-blur-md px-5 py-4 border-b border-white/50">
         <div className="container mx-auto max-w-4xl">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate(-1)}
-              className="text-[#4A4A4A] hover:bg-white/50 mr-2"
+              className="text-[#4A4A4A] hover:bg-white/50"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             
-            <div className="flex-1 flex items-center gap-1">
-              {CHAPTERS.map((chapter, index) => (
-                <div key={chapter.id} className="flex-1 flex items-center gap-1">
-                  <div className="flex-1 flex flex-col items-center">
-                    <div
-                      className={`w-full h-2 rounded-full transition-all ${
-                        index + 1 <= chapterProgress
-                          ? 'bg-gradient-to-r from-[#9D85BE] to-[#C5A3D9]'
-                          : 'bg-white/60'
-                      }`}
-                    />
-                    <span
-                      className={`text-xs mt-1 transition-colors ${
-                        index + 1 === chapterProgress
-                          ? 'text-[#4A4A4A] font-semibold'
-                          : index + 1 < chapterProgress
-                          ? 'text-[#666]'
-                          : 'text-[#999]'
-                      }`}
-                    >
-                      {chapter.name}
-                    </span>
-                  </div>
-                  {index < CHAPTERS.length - 1 && (
-                    <div className="w-1 h-1 rounded-full bg-[#ddd]" />
-                  )}
+            <div className="flex-1 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-white/60 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-[#9D85BE] to-[#C5A3D9] transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.round((messages.filter(m => m.role === 'user').length / 40) * 100))}%` }}
+                  />
                 </div>
-              ))}
+                <span className="text-sm font-medium text-[#4A4A4A] min-w-[50px] text-right">
+                  {Math.min(100, Math.round((messages.filter(m => m.role === 'user').length / 40) * 100))}%
+                </span>
+              </div>
             </div>
           </div>
         </div>

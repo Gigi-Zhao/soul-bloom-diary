@@ -18,6 +18,7 @@ interface VercelResponseLike {
 }
 
 interface DreamSetup {
+    oneSentence: string;
     identity: string;
     dailyLife: string;
     person: string;
@@ -190,6 +191,7 @@ function buildSystemPrompt(setup: DreamSetup, currentChapter: number): string {
     return `你是一位擅长创作沉浸式互动小说的作家。你正在为用户创作一个个性化的白日梦故事。
 
 **用户设定：**
+- 故事核心：${setup.oneSentence}
 - 身份：${setup.identity}
 - 日常：${setup.dailyLife}
 - 想遇到的人：${setup.person}
@@ -202,22 +204,35 @@ function buildSystemPrompt(setup: DreamSetup, currentChapter: number): string {
 1. 使用第二人称("你")来增强代入感
 2. 环境描写要细腻生动，调动五感
 3. 对话要符合人物性格，自然流畅
-4. 根据用户的选择自然推进剧情
-5. 每次回应包含150-300字的内容
-6. 在关键节点提供3个有深度的选择
+4. **【关键】故事应围绕“想遇到的人”展开，减少对无关人事物的过多叙述，尽快切入主题。根据用户的最新选择/输入，自然推进剧情，不要重复之前的场景**
+5. 每次回应包含150-300字的内容，整个故事需要在40轮对话内完成，请合理安排节奏
+6. 故事要有连贯性和进展感，每轮对话都应该让情节向前发展
+7. 故事一定要围绕${setup.oneSentence}展开，一切的人物安排都要服务于这个核心主题，不要偏离主题
 
-**重要：你必须严格按照以下JSON格式返回（不要包含其他文字）：**
+**关于narrator（旁白）和npc_say（对话）的区分：**
+- narrator：仅包含环境描写、心理活动、动作描述，不包含任何对话内容
+- npc_say：NPC的直接对话，不要包含"他说"、"她说"等引导语，直接写对话内容
+- 两者必须严格分开，不要在narrator中包含对话
+
+**关于选项的格式：**
+- 选项必须使用第一人称，像真实对话一样
+- ❌ 错误示例："欣然接受邀约，并问他平时都在哪里演出"
+- ✅ 正确示例："好呀，你平时都在哪里演出呀？"
+- 选项应该是用户可以直接说出口的话
+
+**重要：你必须严格按照以下JSON格式返回（不要包含其他文字，不要用markdown代码块包裹）：**
 {
-  "narrator": "环境描写和旁白文本（必填，使用第二人称'你'）",
-  "npc_say": "NPC的对话内容（可选，如果有对话才填写）",
-  "options": ["选项A描述", "选项B描述", "选项C描述"],
+  "narrator": "环境描写和旁白文本（必填，使用第二人称'你'，不包含任何对话）",
+  "npc_say": "NPC的直接对话内容（可选，如果有对话才填写，不要加引号或引导语）",
+  "options": ["好呀，听起来很有趣", "我再想想吧", "能先聊聊别的吗？"],
   "chapter_end": false,
   "current_chapter": ${currentChapter}
 }
 
-**关于章节推进：**
-- 当当前章节的故事目标基本达成时，将 chapter_end 设为 true
-- 第5章结束后，chapter_end 保持为 true，故事自然收尾`;
+**关于故事推进：**
+- 整个故事需要在40轮对话内完成
+- 根据当前轮次合理推进情节
+- 在接近尾声时自然地引导故事结束`;
 }
 
 // 消息类型定义
@@ -240,19 +255,32 @@ function buildMessages(systemPrompt: string, history: MessageHistory[], isInitia
         });
     } else {
         // 将历史记录转换为对话格式
-        for (const msg of history) {
+        // 需要将旁白和NPC对话按轮次合并
+        let currentAssistantContent: string[] = [];
+        
+        for (let i = 0; i < history.length; i++) {
+            const msg = history[i];
+            
             if (msg.role === 'narrator' || msg.role === 'npc') {
-                // AI的内容（旁白和NPC）
-                const content: string[] = [];
+                // 收集AI的内容（旁白和NPC）
                 if (msg.role === 'narrator') {
-                    content.push(`旁白：${msg.content}`);
+                    currentAssistantContent.push(`旁白：${msg.content}`);
                 } else {
-                    content.push(`对话：${msg.content}`);
+                    currentAssistantContent.push(`对话：${msg.content}`);
                 }
-                messages.push({
-                    role: "assistant",
-                    content: content.join('\n')
-                });
+                
+                // 检查下一条是否还是AI消息
+                const nextMsg = history[i + 1];
+                if (!nextMsg || nextMsg.role === 'user') {
+                    // 如果下一条是用户消息或没有下一条，就提交当前的assistant消息
+                    if (currentAssistantContent.length > 0) {
+                        messages.push({
+                            role: "assistant",
+                            content: currentAssistantContent.join('\n')
+                        });
+                        currentAssistantContent = [];
+                    }
+                }
             } else if (msg.role === 'user') {
                 // 用户的选择
                 messages.push({
@@ -261,7 +289,20 @@ function buildMessages(systemPrompt: string, history: MessageHistory[], isInitia
                 });
             }
         }
+        
+        // 如果最后还有未提交的assistant内容
+        if (currentAssistantContent.length > 0) {
+            messages.push({
+                role: "assistant",
+                content: currentAssistantContent.join('\n')
+            });
+        }
     }
+
+    console.log('[Daydream API] 📜 构建的消息历史:');
+    messages.forEach((msg, index) => {
+        console.log(`  [${index}] ${msg.role}: ${msg.content.substring(0, 100)}...`);
+    });
 
     return messages;
 }
@@ -315,15 +356,105 @@ function parseAIResponse(content: string, currentChapter: number): ParsedAIRespo
         }
         
         // 如果没有找到JSON格式，尝试智能解析文本
-        console.warn('[Daydream API] ⚠️ 未找到JSON格式');
-        throw new Error("No valid JSON found");
+        console.warn('[Daydream API] ⚠️ 未找到标准JSON格式，尝试解析结构化文本');
+        
+        // 尝试解析结构化文本
+        // 格式如：旁白：... 对话：... 选项：...
+        // 使用更宽松的匹配模式
+        const cleanContent = content
+            .replace(/```json\s*/g, '')
+            .replace(/```\s*/g, '')
+            .replace(/\*\*/g, '') // 去除可能的markdown加粗
+            .trim();
+        
+        // 更强大的正则，匹配"旁白："后的所有内容直到遇到"对话："或"选项："
+        // 支持中文"旁白"和英文"Narrator"，支持冒号或空格作为分隔符
+        const narratorMatch = cleanContent.match(/(?:旁白|Narrator)(?:\s*[：:]|\s+)\s*([\s\S]*?)(?=(?:对话|NPC|Say|选项|Options)(?:\s*[：:]|\s+)|$)/i);
+        const npcMatch = cleanContent.match(/(?:对话|NPC|Say)(?:\s*[：:]|\s+)\s*([\s\S]*?)(?=(?:选项|Options)(?:\s*[：:]|\s+)|$)/i);
+        const optionsMatch = cleanContent.match(/(?:选项|Options)(?:\s*[：:]|\s+)\s*([\s\S]*?)$/i);
+
+        if (narratorMatch || npcMatch || optionsMatch) {
+            console.log('[Daydream API] 📝 识别到文本格式，尝试手动提取');
+            
+            // 如果有旁白标记就用标记内容，否则如果只有一段文字默认作为旁白
+            let narrator = "";
+            if (narratorMatch) {
+                narrator = narratorMatch[1].trim();
+            } else if (!npcMatch && !optionsMatch) {
+                // 如果什么标记都没有，整个作为旁白
+                 narrator = cleanContent;
+            } else {
+                // 有其它标记但没旁白标记，尝试取第一段
+                const parts = cleanContent.split(/(?:对话|NPC|Say|选项|Options)(?:\s*[：:]|\s+)/i);
+                if (parts.length > 0 && parts[0].trim()) {
+                    narrator = parts[0].trim().replace(/^(?:旁白|Narrator)(?:\s*[：:]|\s+)\s*/i, '');
+                }
+            }
+
+            const npc_say = npcMatch ? npcMatch[1].trim() : undefined;
+            const optionsText = optionsMatch ? optionsMatch[1].trim() : "";
+            
+            console.log('[Daydream API] 🔍 提取结果:', { 
+                narrator: narrator.substring(0, 50), 
+                npc_say: npc_say?.substring(0, 50), 
+                optionsText: optionsText.substring(0, 100) 
+            });
+            
+            // 解析选项 "1. xxx 2. xxx" 或 "- xxx" 或数组格式
+            let options: string[] = [];
+            if (optionsText) {
+                // 尝试解析JSON数组格式
+                if (optionsText.trim().startsWith('[')) {
+                    try {
+                        options = JSON.parse(optionsText);
+                        console.log('[Daydream API] ✅ JSON数组解析成功:', options);
+                    } catch (e) {
+                        console.warn('[Daydream API] ⚠️ 无法解析选项JSON');
+                    }
+                }
+                
+                if (options.length === 0) {
+                    // 尝试按数字序号分割 (如 1. 选项一 2. 选项二)
+                    // 修正正则，去掉多余的反斜杠
+                    const numberedOptions = optionsText.split(/(?:\d+[.、)]|[ABC][.、)])\s*/).filter(s => s.trim()).map(s => s.trim());
+                    if (numberedOptions.length >= 2) {
+                        options = numberedOptions;
+                        console.log('[Daydream API] ✅ 数字序号解析成功:', options);
+                    } else {
+                        // 尝试按行分割
+                        options = optionsText.split(/[\n;；]/).filter(s => s.trim().length > 5)
+                            .map(s => s.replace(/^[-*•"'`\s\d.、)）]+/, '').replace(/["'`]\s*$/, '').trim());
+                        console.log('[Daydream API] ✅ 行分割解析:', options);
+                    }
+                }
+            }
+            
+            // 兜底选项
+            if (options.length === 0) {
+                 options = [
+                    "继续",
+                    "尝试其他方式",
+                    "思考一会"
+                ];
+            }
+            
+            return {
+                narrator: narrator || "...", // 确保不为空
+                npc_say: npc_say,
+                options: options.slice(0, 3), // 最多取3个
+                chapter_end: false,
+                current_chapter: currentChapter
+            };
+        }
+
+        throw new Error("No valid JSON or structured text found");
         
     } catch (error) {
         console.error('[Daydream API] ❌ 解析AI响应失败:', error);
         console.log('[Daydream API] 📝 原始内容:', content);
         
         // 降级处理：将整个内容作为旁白
-        console.log('[Daydream API] 🔄 使用降级方案');
+        console.log('[Daydream API] 🔄 使用最基础降级方案');
         return {
             narrator: content.slice(0, 500), // 限制长度
             npc_say: undefined,
