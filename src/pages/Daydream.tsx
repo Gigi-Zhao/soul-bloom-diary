@@ -109,6 +109,7 @@ const Daydream = () => {
           setIsTyping(false);
           setTypingText('');
           setMessages(prev => [...prev, message]);
+          console.log('[Daydream] 📝 消息已添加到历史记录');
           resolve();
         }
       }, speed);
@@ -125,17 +126,27 @@ const Daydream = () => {
       status
     });
     
-    if (typingQueueRef.current.length > 0 && !isTyping && status === 'idle') {
+    // 如果队列为空且不在打字中，确保状态为idle
+    if (typingQueueRef.current.length === 0 && !isTyping && status === 'typing') {
+      console.log('[Daydream] 📭 队列已空，重置状态为idle');
+      setStatus('idle');
+      return;
+    }
+    
+    // 如果有消息待处理且当前不在打字中
+    if (typingQueueRef.current.length > 0 && !isTyping) {
       const nextMessage = typingQueueRef.current.shift();
       if (nextMessage) {
         console.log('[Daydream] ⌨️ 开始打字:', nextMessage.role);
         setStatus('typing');
         typeMessage(nextMessage).then(() => {
-          console.log('[Daydream] ✅ 打字完成');
+          console.log('[Daydream] ✅ 打字完成，检查队列');
+          // 打字完成后，触发重新检查队列（通过改变状态触发useEffect）
           if (typingQueueRef.current.length === 0) {
-            console.log('[Daydream] 📭 队列为空，设置为idle');
+            console.log('[Daydream] 📭 没有更多消息，设置为idle');
             setStatus('idle');
           }
+          // 如果队列还有消息，保持typing状态，让useEffect再次触发
         });
       }
     }
