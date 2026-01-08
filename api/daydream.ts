@@ -210,9 +210,9 @@ function buildSystemPrompt(setup: DreamSetup, currentChapter: number): string {
 7. 故事一定要围绕${setup.oneSentence}展开，一切的人物安排都要服务于这个核心主题，不要偏离主题
 
 **关于narrator（旁白）和npc_say（对话）的区分：**
-- narrator：仅包含环境描写、心理活动、动作描述，不包含任何对话内容
-- npc_say：NPC的直接对话，不要包含"他说"、"她说"等引导语，直接写对话内容
-- 两者必须严格分开，不要在narrator中包含对话
+- narrator：包含环境描写、心理活动、动作描述，以及**除了“想遇到的人”以外其他所有配角/路人的对话**（请用第三人称描述他们的语言，如"老板让你快点干活"）。
+- npc_say：**仅限“想遇到的人”（${setup.person}）的直接对话**。不要包含"他说"、"她说"等引导语，直接写对话内容。如果${setup.person}本轮没有说话，此字段留空。
+- 只有${setup.person}才有资格与用户直接对话（使用'npc_say'），其他人物的互动一律放入旁白（narrator）中一笔带过。
 
 **关于选项的格式：**
 - 选项必须使用第一人称，像真实对话一样
