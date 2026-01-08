@@ -131,6 +131,12 @@ const Daydream = () => {
   
   // 调用AI API
   const callDaydreamAPI = async (isInitial: boolean = false) => {
+    console.log('[Daydream] 🚀 开始调用API');
+    console.log('[Daydream] isInitial:', isInitial);
+    console.log('[Daydream] setup:', setup);
+    console.log('[Daydream] currentChapter:', chapterProgress);
+    console.log('[Daydream] messages history:', messages);
+    
     setStatus('loading');
     setCurrentOptions([]);
     
@@ -138,31 +144,42 @@ const Daydream = () => {
     abortControllerRef.current = new AbortController();
     
     try {
+      console.log('[Daydream] 📡 准备发送请求到 /api/daydream');
+      const requestBody = {
+        setup: setup,
+        history: messages.map(m => ({
+          role: m.role,
+          content: m.content
+        })),
+        currentChapter: chapterProgress,
+        isInitial: isInitial
+      };
+      
+      console.log('[Daydream] 📤 请求体:', requestBody);
+      
       const response = await fetch('/api/daydream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          setup: setup,
-          history: messages.map(m => ({
-            role: m.role,
-            content: m.content
-          })),
-          currentChapter: chapterProgress,
-          isInitial: isInitial
-        }),
+        body: JSON.stringify(requestBody),
         signal: abortControllerRef.current.signal
       });
       
+      console.log('[Daydream] 📥 收到响应:', response.status, response.statusText);
+      
       if (!response.ok) {
-        throw new Error('API请求失败');
+        const errorText = await response.text();
+        console.error('[Daydream] ❌ API请求失败:', response.status, errorText);
+        throw new Error(`API请求失败: ${response.status} ${errorText}`);
       }
       
       const data: AIResponse = await response.json();
+      console.log('[Daydream] 📦 解析的数据:', data);
       
       // 处理旁白
       if (data.narrator) {
+        console.log('[Daydream] 📖 添加旁白消息');
         addMessageWithTyping({
           id: `narrator-${Date.now()}`,
           role: 'narrator',
@@ -173,6 +190,7 @@ const Daydream = () => {
       
       // 处理NPC对话
       if (data.npc_say) {
+        console.log('[Daydream] 💬 添加NPC对话');
         addMessageWithTyping({
           id: `npc-${Date.now()}`,
           role: 'npc',
@@ -185,25 +203,34 @@ const Daydream = () => {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // 设置选项
+      console.log('[Daydream] 🎯 设置选项:', data.options);
       setCurrentOptions(data.options || []);
       
       // 检查是否进入下一章
       if (data.chapter_end && chapterProgress < CHAPTERS.length) {
+        console.log('[Daydream] 📈 进入下一章');
         setChapterProgress(prev => prev + 1);
       }
       
       if (data.current_chapter) {
+        console.log('[Daydream] 📊 更新章节:', data.current_chapter);
         setChapterProgress(data.current_chapter);
       }
       
+      console.log('[Daydream] ✅ API调用完成');
+      
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('请求被取消');
+        console.log('[Daydream] ⏹️ 请求被取消');
       } else {
-        console.error('API调用失败:', error);
+        console.error('[Daydream] ❌ API调用失败:', error);
+        if (error instanceof Error) {
+          console.error('[Daydream] 错误消息:', error.message);
+          console.error('[Daydream] 错误堆栈:', error.stack);
+        }
         toast({
           title: "出错了",
-          description: "无法生成故事内容，请重试",
+          description: error instanceof Error ? error.message : "无法生成故事内容，请重试",
           variant: "destructive"
         });
         setStatus('idle');
@@ -213,7 +240,9 @@ const Daydream = () => {
   
   // 开始白日梦
   const handleStartDream = () => {
+    console.log('[Daydream] 🌟 用户点击开始做梦');
     if (!setup.identity || !setup.dailyLife || !setup.person || !setup.tone) {
+      console.warn('[Daydream] ⚠️ 设定信息不完整');
       toast({
         title: "请填写完整",
         description: "请填写所有必填项后再开始",
@@ -222,6 +251,7 @@ const Daydream = () => {
       return;
     }
     
+    console.log('[Daydream] ✨ 进入故事模式');
     setPhase('story');
     setChapterProgress(1);
     callDaydreamAPI(true);
@@ -229,7 +259,11 @@ const Daydream = () => {
   
   // 处理用户选择/输入
   const handleUserChoice = (choice: string) => {
-    if (status !== 'idle') return;
+    console.log('[Daydream] 👆 用户选择:', choice);
+    if (status !== 'idle') {
+      console.warn('[Daydream] ⚠️ 当前状态不是idle，跳过:', status);
+      return;
+    }
     
     // 添加用户消息
     const userMessage: DreamMessage = {
@@ -239,6 +273,7 @@ const Daydream = () => {
       timestamp: Date.now()
     };
     
+    console.log('[Daydream] 💭 添加用户消息到历史');
     setMessages(prev => [...prev, userMessage]);
     setUserInput('');
     

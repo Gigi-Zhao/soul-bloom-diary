@@ -37,6 +37,8 @@ interface RequestBody {
 }
 
 export default async function handler(req: VercelRequestLike, res: VercelResponseLike) {
+    console.log('[Daydream API] 🚀 收到请求:', req.method);
+    
     // Handle OPTIONS for CORS
     if (req.method === "OPTIONS") {
         res.setHeader("Access-Control-Allow-Origin", "*");
@@ -46,6 +48,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
     }
 
     if (req.method !== "POST") {
+        console.error('[Daydream API] ❌ 错误的请求方法:', req.method);
         res.setHeader("Allow", "POST");
         return res.status(405).json({ error: "Method Not Allowed" });
     }
@@ -56,21 +59,32 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
     try {
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
+            console.error('[Daydream API] ❌ 缺少API密钥');
             return res.status(500).json({ error: "Server misconfigured: OPENROUTER_API_KEY missing" });
         }
 
         const body = (req as { body?: unknown }).body as RequestBody | undefined;
+        console.log('[Daydream API] 📦 请求体:', JSON.stringify(body, null, 2));
+        
         if (!body || !body.setup) {
+            console.error('[Daydream API] ❌ 请求体错误');
             return res.status(400).json({ error: "Invalid request: setup required" });
         }
 
         const { setup, history, currentChapter, isInitial } = body;
+        
+        console.log('[Daydream API] 📝 设定信息:', setup);
+        console.log('[Daydream API] 📊 当前章节:', currentChapter);
+        console.log('[Daydream API] 🔄 是否初始化:', isInitial);
+        console.log('[Daydream API] 📜 历史消息数量:', history?.length || 0);
 
-        // 构建系统提示词
+        // 构廻系统提示词
         const systemPrompt = buildSystemPrompt(setup, currentChapter);
+        console.log('[Daydream API] 🧠 系统提示词长度:', systemPrompt.length);
         
         // 构建消息历史
         const messages = buildMessages(systemPrompt, history, isInitial);
+        console.log('[Daydream API] 📬 构建的消息数量:', messages.length);
 
         // 获取模型列表
         const models = getChatModelsForRequest();
@@ -80,7 +94,15 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         // 尝试不同的模型
         for (const model of models) {
             try {
-                console.log(`[Daydream] Trying model: ${model}`);
+                console.log(`[Daydream API] 🤖 尝试模型: ${model}`);
+                
+                const openrouterPayload = {
+                    model: model,
+                    messages,
+                    temperature: 0.9,
+                    max_tokens: 2000,
+                };
+                console.log('[Daydream API] 📤 OpenRouter请求载荷:', JSON.stringify(openrouterPayload, null, 2));
                 
                 const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                     method: "POST",
@@ -98,44 +120,56 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                     }),
                 });
 
+                console.log(`[Daydream API] 📥 OpenRouter响应状态: ${response.status}`);
+                
                 if (!response.ok) {
                     const text = await response.text().catch(() => "");
                     lastError = `Model ${model} failed: ${response.status} ${text}`;
-                    console.warn(`[Daydream] ${lastError}`);
+                    console.warn(`[Daydream API] ⚠️ ${lastError}`);
                     continue;
                 }
 
                 const data = await response.json();
+                console.log('[Daydream API] 📦 OpenRouter返回数据:', JSON.stringify(data, null, 2));
+                
                 const content = data.choices?.[0]?.message?.content;
 
                 if (!content) {
                     lastError = `Model ${model} returned empty content`;
-                    console.warn(`[Daydream] ${lastError}`);
+                    console.warn(`[Daydream API] ⚠️ ${lastError}`);
                     continue;
                 }
 
-                console.log(`[Daydream] Successfully generated with model: ${model}`);
-                console.log(`[Daydream] Raw response: ${content}`);
+                console.log(`[Daydream API] ✅ 成功生成内容，模型: ${model}`);
+                console.log(`[Daydream API] 📝 原始内容: ${content}`);
 
                 // 解析AI返回的内容
                 const parsedResponse = parseAIResponse(content, currentChapter);
+                console.log('[Daydream API] 🎯 解析后的响应:', JSON.stringify(parsedResponse, null, 2));
                 
                 return res.status(200).json(parsedResponse);
 
             } catch (e) {
                 lastError = `Model ${model} error: ${e instanceof Error ? e.message : String(e)}`;
-                console.warn(`[Daydream] ${lastError}`);
+                console.error(`[Daydream API] ❌ ${lastError}`);
+                if (e instanceof Error && e.stack) {
+                    console.error(`[Daydream API] 堆栈信息:`, e.stack);
+                }
             }
         }
 
         // 所有模型都失败了
+        console.error('[Daydream API] ❌ 所有模型都失败');
         return res.status(500).json({ 
             error: `All models failed. Last error: ${lastError}`,
             options: ["继续探索", "回想刚才", "做点别的"]
         });
 
     } catch (error) {
-        console.error('[Daydream] Unexpected error:', error);
+        console.error('[Daydream API] ❌ 未预期错误:', error);
+        if (error instanceof Error) {
+            console.error('[Daydream API] 错误堆栈:', error.stack);
+        }
         return res.status(500).json({ 
             error: error instanceof Error ? error.message : "Unknown error",
             options: ["继续探索", "回想刚才", "做点别的"]
@@ -243,19 +277,24 @@ interface ParsedAIResponse {
 
 // 解析AI返回的内容
 function parseAIResponse(content: string, currentChapter: number): ParsedAIResponse {
+    console.log('[Daydream API] 🔍 开始解析AI响应');
     try {
         // 尝试提取JSON
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
+            console.log('[Daydream API] 📦 找到JSON匹配:', jsonMatch[0]);
             const parsed = JSON.parse(jsonMatch[0]);
+            console.log('[Daydream API] ✅ JSON解析成功:', parsed);
             
             // 验证必填字段
             if (!parsed.narrator) {
+                console.error('[Daydream API] ❌ 缺少narrator字段');
                 throw new Error("Missing narrator field");
             }
             
-            // 确保options是数组且有3个选项
+            // 确俛options是数组且有3个选项
             if (!Array.isArray(parsed.options) || parsed.options.length === 0) {
+                console.warn('[Daydream API] ⚠️ options为空，使用默认选项');
                 parsed.options = [
                     "继续这样做",
                     "换个方式试试",
@@ -276,13 +315,15 @@ function parseAIResponse(content: string, currentChapter: number): ParsedAIRespo
         }
         
         // 如果没有找到JSON格式，尝试智能解析文本
+        console.warn('[Daydream API] ⚠️ 未找到JSON格式');
         throw new Error("No valid JSON found");
         
     } catch (error) {
-        console.error('[Daydream] Failed to parse AI response:', error);
-        console.log('[Daydream] Raw content:', content);
+        console.error('[Daydream API] ❌ 解析AI响应失败:', error);
+        console.log('[Daydream API] 📝 原始内容:', content);
         
         // 降级处理：将整个内容作为旁白
+        console.log('[Daydream API] 🔄 使用降级方案');
         return {
             narrator: content.slice(0, 500), // 限制长度
             npc_say: undefined,
