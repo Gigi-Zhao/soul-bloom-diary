@@ -438,11 +438,17 @@ const Daydream = () => {
   };
     // 加载历史记录
   const loadHistory = async () => {
+    console.log('[Daydream] 开始加载历史记录');
     setIsLoadingHistory(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      console.log('[Daydream] 当前用户:', user?.id);
+      if (!user) {
+        console.log('[Daydream] 未登录，无法加载历史记录');
+        return;
+      }
       
+      console.log('[Daydream] 正在查询daydreams表...');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('daydreams')
@@ -450,10 +456,13 @@ const Daydream = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
+      console.log('[Daydream] 查询结果:', { data, error });
+      
       if (error) throw error;
       setHistoryRecords(data || []);
+      console.log('[Daydream] 加载成功，记录数:', data?.length || 0);
     } catch (error) {
-      console.error('加载历史记录失败:', error);
+      console.error('[Daydream] 加载历史记录失败:', error);
       toast({
         title: "加载失败",
         description: "无法加载历史记录",
@@ -613,13 +622,13 @@ const Daydream = () => {
     return (
       <div className="min-h-screen bg-gradient-to-b from-purple-50 via-pink-50 to-purple-50 relative overflow-hidden">
         {/* 动态背景效果 */}
-        <div className="absolute inset-0 opacity-20">
+        <div className="absolute inset-0 opacity-20 pointer-events-none">
           <div className="absolute top-20 left-20 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
           <div className="absolute top-40 right-20 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
           <div className="absolute bottom-20 left-40 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
         </div>
         
-        <div className="relative z-10 container mx-auto px-5 py-8 max-w-2xl">
+        <div className="relative z-50 container mx-auto px-5 py-8 max-w-2xl">
           <div className="flex items-center justify-between mb-8 mt-10">
             <Button
               variant="ghost"
@@ -629,6 +638,21 @@ const Daydream = () => {
             >
               <ArrowLeft className="h-6 w-6" />
             </Button>
+            
+            {/* 历史记录胶囊按钮 */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('梦境记录按钮被点击了！');
+                setShowHistory(true);
+                loadHistory();
+              }}
+              className="pointer-events-auto relative text-[#4A4A4A] hover:bg-white/50 flex items-center gap-2 rounded-full px-4 py-2 bg-white/30 backdrop-blur-sm border border-white/50 hover:bg-white/60 transition-all cursor-pointer"
+            >
+              <History className="h-4 w-4" />
+              <span className="text-sm font-medium">梦境记录</span>
+            </button>
           </div>
           
           <div className="bg-white/40 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/50">
@@ -707,6 +731,92 @@ const Daydream = () => {
             </div>
           </div>
         </div>
+        
+        {/* 历史记录弹窗 - setup模式 */}
+        {showHistory && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+              {/* 弹窗头部 */}
+              <div className="flex items-center justify-between p-6 border-b">
+                <h2 className="text-2xl font-semibold text-[#4A4A4A]">梦境记录</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowHistory(false)}
+                  className="text-[#4A4A4A] hover:bg-gray-100"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              {/* 历史记录列表 */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {isLoadingHistory ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-[#999]">加载中...</div>
+                  </div>
+                ) : historyRecords.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <History className="h-16 w-16 text-[#999] mb-4" />
+                    <p className="text-[#999]">还没有梦境记录</p>
+                    <p className="text-sm text-[#999] mt-2">开始做梦后保存即可查看历史记录</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {historyRecords.map((record) => (
+                      <div
+                        key={record.id}
+                        className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5 border border-purple-100 hover:shadow-md transition-all cursor-pointer group"
+                        onClick={() => loadDream(record)}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-medium text-[#4A4A4A] mb-1 group-hover:text-[#9D85BE] transition-colors">
+                              {record.title}
+                            </h3>
+                            <p className="text-sm text-[#999]">
+                              {new Date(record.created_at).toLocaleDateString('zh-CN', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteDream(record.id);
+                            }}
+                            className="text-[#999] hover:text-red-500 hover:bg-red-50"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#999]">消息数量:</span>
+                            <span className="font-medium text-[#4A4A4A]">{record.messages.length}</span>
+                          </div>
+                          {record.is_completed && (
+                            <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                              <Sparkles className="h-3 w-3" />
+                              已完成
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -740,19 +850,6 @@ const Daydream = () => {
                 </span>
               </div>
             </div>
-            
-            {/* 历史记录胶囊按钮 */}
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowHistory(true);
-                loadHistory();
-              }}
-              className="text-[#4A4A4A] hover:bg-white/50 flex items-center gap-2 rounded-full px-4 py-2 bg-white/30 backdrop-blur-sm border border-white/50 hover:bg-white/60 transition-all"
-            >
-              <History className="h-4 w-4" />
-              <span className="text-sm font-medium">梦境记录</span>
-            </Button>
           </div>
         </div>
       </div>
@@ -880,9 +977,9 @@ const Daydream = () => {
         </div>
       </div>
       
-      {/* 历史记录弹窗 */}
+      {/* 历史记录弹窗 - story模式 */}
       {showHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-6 border-b">
