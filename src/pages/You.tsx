@@ -67,9 +67,9 @@ const You = () => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: true })
           .limit(1)
-          .maybeSingle();
+          .maybeSingle() as { data: { created_at: string } | null };
 
-        if (firstJournal) {
+        if (firstJournal && firstJournal.created_at) {
           const firstDate = new Date(firstJournal.created_at);
           const today = new Date();
           const diffTime = Math.abs(today.getTime() - firstDate.getTime());

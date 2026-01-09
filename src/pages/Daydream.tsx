@@ -41,8 +41,6 @@ interface AIResponse {
   narrator?: string;       // 旁白文本
   npc_say?: string;        // NPC对话
   options: string[];       // 3个建议选项
-  chapter_end?: boolean;   // 是否进入下一章
-  current_chapter?: number; // 当前章节号
 }
 
 // 状态类型
@@ -54,20 +52,10 @@ interface DaydreamRecord {
   title: string;
   setup: DreamSetup;
   messages: DreamMessage[];
-  current_chapter: number;
   is_completed: boolean;
   created_at: string;
   updated_at: string;
 }
-
-// 章节配置
-const CHAPTERS = [
-  { id: 1, name: "日常" },
-  { id: 2, name: "转机" },
-  { id: 3, name: "发展" },
-  { id: 4, name: "高潮" },
-  { id: 5, name: "结局" }
-];
 
 const Daydream = () => {
   const navigate = useNavigate();
@@ -93,7 +81,6 @@ const Daydream = () => {
   });
   const [messages, setMessages] = useState<DreamMessage[]>([]);
   const [currentOptions, setCurrentOptions] = useState<string[]>([]);
-  const [chapterProgress, setChapterProgress] = useState(1);
   const [status, setStatus] = useState<DreamStatus>('idle');
   const [userInput, setUserInput] = useState('');
   
@@ -193,7 +180,6 @@ const Daydream = () => {
     console.log('[Daydream] 🚀 开始调用API');
     console.log('[Daydream] isInitial:', isInitial);
     console.log('[Daydream] setup:', setup);
-    console.log('[Daydream] currentChapter:', chapterProgress);
     console.log('[Daydream] messages history (count):', currentMessages.length);
     
     setStatus('loading');
@@ -210,7 +196,6 @@ const Daydream = () => {
           role: m.role,
           content: m.content
         })),
-        currentChapter: chapterProgress,
         isInitial: isInitial
       };
       
@@ -312,7 +297,9 @@ const Daydream = () => {
                     if (optionsText.startsWith('[')) {
                         try {
                             parsedOptions = JSON.parse(optionsText);
-                        } catch (e) {}
+                        } catch (e) {
+                            // 忽略解析错误
+                        }
                     }
                     // 尝试解析列表
                     if (parsedOptions.length === 0) {
@@ -368,17 +355,6 @@ const Daydream = () => {
         setCurrentOptions(data.options || []);
       }, estimatedTypingTime);
       
-      // 检查是否进入下一章
-      if (data.chapter_end && chapterProgress < CHAPTERS.length) {
-        console.log('[Daydream] 📈 进入下一章');
-        setChapterProgress(prev => prev + 1);
-      }
-      
-      if (data.current_chapter) {
-        console.log('[Daydream] 📊 更新章节:', data.current_chapter);
-        setChapterProgress(data.current_chapter);
-      }
-      
       // 重置状态，让打字效果可以开始
       console.log('[Daydream] 🔄 重置状态为idle');
       setStatus('idle');
@@ -418,7 +394,6 @@ const Daydream = () => {
     
     console.log('[Daydream] ✨ 进入故事模式');
     setPhase('story');
-    setChapterProgress(1);
     callDaydreamAPI(true);
   };
   
@@ -512,8 +487,7 @@ const Daydream = () => {
         title,
         setup,
         messages,
-        current_chapter: chapterProgress,
-        is_completed: chapterProgress >= 5
+        is_completed: false
       };
       
       if (currentDreamId) {
@@ -560,7 +534,6 @@ const Daydream = () => {
     setCurrentDreamId(record.id);
     setSetup(record.setup);
     setMessages(record.messages);
-    setChapterProgress(record.current_chapter);
     setPhase('story');
     setShowHistory(false);
     setHasUnsavedChanges(false);
@@ -655,19 +628,6 @@ const Daydream = () => {
               className="text-[#4A4A4A] hover:bg-white/50"
             >
               <ArrowLeft className="h-6 w-6" />
-            </Button>
-            
-            {/* 历史记录胶囊按钮 */}
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowHistory(true);
-                loadHistory();
-              }}
-              className="text-[#4A4A4A] hover:bg-white/50 flex items-center gap-2 rounded-full px-4 py-2 bg-white/30 backdrop-blur-sm border border-white/50 hover:bg-white/60 transition-all"
-            >
-              <History className="h-4 w-4" />
-              <span className="text-sm font-medium">梦境记录</span>
             </Button>
           </div>
           
@@ -986,12 +946,6 @@ const Daydream = () => {
                       </div>
                       
                       <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#999]">章节进度:</span>
-                          <span className="font-medium text-[#4A4A4A]">
-                            {CHAPTERS.find(c => c.id === record.current_chapter)?.name || '未知'}
-                          </span>
-                        </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[#999]">消息数量:</span>
                           <span className="font-medium text-[#4A4A4A]">{record.messages.length}</span>

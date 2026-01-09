@@ -33,7 +33,6 @@ interface MessageHistory {
 interface RequestBody {
     setup: DreamSetup;
     history: MessageHistory[];
-    currentChapter: number;
     isInitial: boolean;
 }
 
@@ -72,20 +71,30 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(400).json({ error: "Invalid request: setup required" });
         }
 
-        const { setup, history, currentChapter, isInitial } = body;
+        const { setup, history, isInitial } = body;
         
         console.log('[Daydream API] 📝 设定信息:', setup);
-        console.log('[Daydream API] 📊 当前章节:', currentChapter);
         console.log('[Daydream API] 🔄 是否初始化:', isInitial);
         console.log('[Daydream API] 📜 历史消息数量:', history?.length || 0);
 
-        // 构廻系统提示词
-        const systemPrompt = buildSystemPrompt(setup, currentChapter);
+        // 构建系统提示词
+        const systemPrompt = buildSystemPrompt(setup);
         console.log('[Daydream API] 🧠 系统提示词长度:', systemPrompt.length);
         
         // 构建消息历史
         const messages = buildMessages(systemPrompt, history, isInitial);
         console.log('[Daydream API] 📬 构建的消息数量:', messages.length);
+        
+        // 详细输出每条消息的完整内容
+        console.log('[Daydream API] 📋 完整上下文内容:');
+        console.log('='.repeat(80));
+        messages.forEach((msg, index) => {
+            console.log(`\n[消息 ${index + 1}] 角色: ${msg.role}`);
+            console.log('-'.repeat(80));
+            console.log(msg.content);
+            console.log('-'.repeat(80));
+        });
+        console.log('='.repeat(80));
 
         // 获取模型列表
         const models = getChatModelsForRequest();
@@ -145,7 +154,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                 console.log(`[Daydream API] 📝 原始内容: ${content}`);
 
                 // 解析AI返回的内容
-                const parsedResponse = parseAIResponse(content, currentChapter);
+                const parsedResponse = parseAIResponse(content);
                 console.log('[Daydream API] 🎯 解析后的响应:', JSON.stringify(parsedResponse, null, 2));
                 
                 return res.status(200).json(parsedResponse);
@@ -179,15 +188,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
 }
 
 // 构建系统提示词
-function buildSystemPrompt(setup: DreamSetup, currentChapter: number): string {
-    const chapterGoals = {
-        1: "描绘主角的灰色日常，营造压抑感，为后续转机做铺垫",
-        2: "引入关键转机事件或人物，打破日常的沉闷",
-        3: "推进剧情发展，加深主角与关键人物/事件的联系",
-        4: "达到故事高潮，情感或剧情达到最强烈的时刻",
-        5: "收束故事，给予主角和读者一个完整的结局（开放式或明确式）"
-    };
-
+function buildSystemPrompt(setup: DreamSetup): string {
     return `你是一位擅长创作沉浸式互动小说的作家。你正在为用户创作一个个性化的白日梦故事。
 
 **用户设定：**
@@ -197,17 +198,13 @@ function buildSystemPrompt(setup: DreamSetup, currentChapter: number): string {
 - 想遇到的人：${setup.person}
 - 故事基调：${setup.tone}
 
-**当前章节：第${currentChapter}章（共5章）**
-**章节目标：${chapterGoals[currentChapter as keyof typeof chapterGoals] || "推进故事情节"}**
-
 **写作要求：**
 1. 使用第二人称("你")来增强代入感
 2. 环境描写要细腻生动，调动五感
 3. 对话要符合人物性格，自然流畅
-4. **【关键】故事应围绕“想遇到的人”展开，减少对无关人事物的过多叙述，尽快切入主题。根据用户的最新选择/输入，自然推进剧情，不要重复之前的场景**
-5. 每次回应包含150-300字的内容，整个故事需要在40轮对话内完成，请合理安排节奏
-6. 故事要有连贯性和进展感，每轮对话都应该让情节向前发展
-7. 故事一定要围绕${setup.oneSentence}展开，一切的人物安排都要服务于这个核心主题，不要偏离主题
+4. 【关键】故事应围绕“想遇到的人”展开，减少对无关人事物的过多叙述，尽快切入主题。根据用户的最新选择/输入，自然推进剧情，不要重复之前的场景和内容
+5. 每次回应包含150-300字的内容，故事情节紧凑、进展快，每轮对话都应该让情节向前发展
+6. 故事一定要围绕${setup.oneSentence}展开，一切的人物安排都要服务于这个核心主题，不要偏离主题
 
 **关于narrator（旁白）和npc_say（对话）的区分：**
 - narrator：包含环境描写、心理活动、动作描述，以及**除了“想遇到的人”以外其他所有配角/路人的对话**（请用第三人称描述他们的语言，如"老板让你快点干活"）。
@@ -224,9 +221,7 @@ function buildSystemPrompt(setup: DreamSetup, currentChapter: number): string {
 {
   "narrator": "环境描写和旁白文本（必填，使用第二人称'你'，不包含任何对话）",
   "npc_say": "NPC的直接对话内容（可选，如果有对话才填写，不要加引号或引导语）",
-  "options": ["好呀，听起来很有趣", "我再想想吧", "能先聊聊别的吗？"],
-  "chapter_end": false,
-  "current_chapter": ${currentChapter}
+  "options": ["好呀，听起来很有趣", "我再想想吧", "能先聊聊别的吗？"]
 }
 
 **关于故事推进：**
@@ -287,7 +282,7 @@ function buildMessages(systemPrompt: string, history: MessageHistory[], isInitia
                 
                 // 如果是最后一条消息（即当前用户的最新输入），添加强力引导
                 if (i === history.length - 1) {
-                    content += "\n\n（请根据由于我的这个行动/选择，继续推进剧情。请严格按照JSON格式返回，包含narrator, npc_say(可选), options, chapter_end等字段）";
+                    content += "\n\n（请根据我的这个行动/选择，继续推进剧情。请严格按照JSON格式返回，包含narrator, npc_say(可选), options等字段）";
                     console.log('[Daydream API] 🔧 已为最新用户消息添加引导提示');
                 }
 
@@ -308,8 +303,12 @@ function buildMessages(systemPrompt: string, history: MessageHistory[], isInitia
     }
 
     console.log('[Daydream API] 📜 构建的消息历史:');
+    console.log(`总共 ${messages.length} 条消息`);
     messages.forEach((msg, index) => {
-        console.log(`  [${index}] ${msg.role}: ${msg.content.substring(0, 100)}...`);
+        const preview = msg.content.length > 100 
+            ? msg.content.substring(0, 100) + '...' 
+            : msg.content;
+        console.log(`  [${index}] ${msg.role}: ${preview}`);
     });
 
     return messages;
@@ -320,12 +319,10 @@ interface ParsedAIResponse {
     narrator?: string;
     npc_say?: string;
     options: string[];
-    chapter_end: boolean;
-    current_chapter: number;
 }
 
 // 解析AI返回的内容
-function parseAIResponse(content: string, currentChapter: number): ParsedAIResponse {
+function parseAIResponse(content: string): ParsedAIResponse {
     console.log('[Daydream API] 🔍 开始解析AI响应');
     try {
         // 尝试提取JSON
@@ -341,7 +338,7 @@ function parseAIResponse(content: string, currentChapter: number): ParsedAIRespo
                 throw new Error("Missing narrator field");
             }
             
-            // 确俛options是数组且有3个选项
+            // 确保options是数组且有选项
             if (!Array.isArray(parsed.options) || parsed.options.length === 0) {
                 console.warn('[Daydream API] ⚠️ options为空，使用默认选项');
                 parsed.options = [
@@ -349,15 +346,6 @@ function parseAIResponse(content: string, currentChapter: number): ParsedAIRespo
                     "换个方式试试",
                     "观察周围的情况"
                 ];
-            }
-            
-            // 确保有chapter信息
-            if (typeof parsed.current_chapter !== 'number') {
-                parsed.current_chapter = currentChapter;
-            }
-            
-            if (typeof parsed.chapter_end !== 'boolean') {
-                parsed.chapter_end = false;
             }
             
             return parsed;
@@ -449,9 +437,7 @@ function parseAIResponse(content: string, currentChapter: number): ParsedAIRespo
             return {
                 narrator: narrator || "...", // 确保不为空
                 npc_say: npc_say,
-                options: options.slice(0, 3), // 最多取3个
-                chapter_end: false,
-                current_chapter: currentChapter
+                options: options.slice(0, 3) // 最多取3个
             };
         }
 
@@ -470,9 +456,7 @@ function parseAIResponse(content: string, currentChapter: number): ParsedAIRespo
                 "继续探索",
                 "停下来思考",
                 "换个角度看问题"
-            ],
-            chapter_end: false,
-            current_chapter: currentChapter
+            ]
         };
     }
 }
