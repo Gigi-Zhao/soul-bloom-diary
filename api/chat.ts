@@ -112,9 +112,13 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         const reader = (openrouterRes.body as ReadableStream<Uint8Array>).getReader();
         let buffer = "";
 
-        // Forward as plain text data lines; preserve spaces and newlines
+        // Forward as JSON stringified data to preserve newlines and special characters
         const sendData = (text: string) => {
-            res.write(`data: ${text}\n\n`);
+            if (text === "[DONE]") {
+                res.write(`data: [DONE]\n\n`);
+            } else {
+                res.write(`data: ${JSON.stringify(text)}\n\n`);
+            }
         };
 
         while (true) {

@@ -132,7 +132,8 @@ const Chat = () => {
       console.log('[Title] 📝 用于生成标题的消息:', messagesForSummary);
 
       // Create prompt for title generation
-      const conversationContext = messagesForSummary
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const conversationContext = (messagesForSummary as any[])
         .map(msg => `${msg.sender_role === 'user' ? '用户' : 'AI'}: ${msg.content}`)
         .join('\n');
 
@@ -225,6 +226,7 @@ ${conversationContext}
       // Update conversation title in database
       const { error: updateError } = await supabase
         .from('conversations')
+        // @ts-expect-error Supabase types mismatch
         .update({ title: generatedTitle })
         .eq('id', conversationId);
 
@@ -298,6 +300,7 @@ ${conversationContext}
             return;
           }
           
+          // @ts-expect-error Supabase types mismatch
           setConversationId(existingConv.id);
           setIsNewConversation(false);
           conversationCreatedRef.current = true;
@@ -315,6 +318,7 @@ ${conversationContext}
           if (existingConversations && !convError) {
             // Found existing conversation - load it
             console.log('[Chat Init] 找到现有对话，加载历史记录');
+            // @ts-expect-error Supabase types mismatch
             setConversationId(existingConversations.id);
             setIsNewConversation(false);
             conversationCreatedRef.current = true;
@@ -370,7 +374,8 @@ ${conversationContext}
     } else {
       const messageData = data || [];
       setMessages(messageData);
-      messageIdsRef.current = new Set(messageData.map(m => m.id));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messageIdsRef.current = new Set((messageData as any[]).map(m => m.id));
       // 首次加载消息时滚动到底部，但之后不再自动滚动
       // 只在用户发送新消息时滚动
       if (messageData.length > 0) {
@@ -528,6 +533,7 @@ ${conversationContext}
         
         const { data: newConv, error: convError } = await supabase
           .from('conversations')
+          // @ts-expect-error Supabase types mismatch
           .insert({
             user_id: currentUserId,
             ai_role_id: roleId,
@@ -536,19 +542,21 @@ ${conversationContext}
           .select()
           .single();
 
-        if (convError) {
+        if (convError || !newConv) {
           console.error('Error creating conversation:', convError);
           toast({
             title: "创建对话失败",
-            description: convError.message,
+            description: convError?.message || "无法创建对话",
             variant: "destructive",
           });
           setIsLoading(false);
           return;
         }
 
-        activeConversationId = newConv.id;
-        setConversationId(newConv.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const conv = newConv as any;
+        activeConversationId = conv.id;
+        setConversationId(conv.id);
         setIsNewConversation(false);
         conversationCreatedRef.current = true;
         
@@ -561,16 +569,19 @@ ${conversationContext}
               conversation_id: activeConversationId,
               sender_role: 'ai',
               content: pendingInitialAIMessageRef.current,
-            })
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any)
             .select()
             .single();
 
           if (initialAIError) {
             console.error('[Chat] 保存初始AI消息失败:', initialAIError);
           } else if (initialAIMsg) {
-            console.log('[Chat] 初始AI消息已保存，ID:', initialAIMsg.id);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const msgId = (initialAIMsg as any).id;
+            console.log('[Chat] 初始AI消息已保存，ID:', msgId);
             // 更新UI中的临时消息为真实消息
-            messageIdsRef.current.add(initialAIMsg.id);
+            messageIdsRef.current.add(msgId);
             setMessages(prev => prev.map(m => 
               m.id.startsWith('temp-initial-') ? initialAIMsg : m
             ));
@@ -598,7 +609,8 @@ ${conversationContext}
           conversation_id: activeConversationId,
           sender_role: 'user',
           content: userMessageContent,
-        })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
         .select()
         .single();
 
@@ -615,6 +627,7 @@ ${conversationContext}
 
       // Add user message to UI immediately
       if (userMsgData) {
+        // @ts-expect-error Supabase types mismatch
         messageIdsRef.current.add(userMsgData.id);
         setMessages((prev) => [...prev, userMsgData]);
         // 用户发送消息后，滚动到底部（保持若干行距离）
@@ -643,7 +656,8 @@ ${conversationContext}
       // Prepare messages for AI
       const aiMessages = [
         { role: 'system', content: aiRole.prompt },
-        ...conversationHistory.map(msg => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(conversationHistory as any[]).map(msg => ({
           role: msg.sender_role === 'user' ? 'user' : 'assistant',
           content: msg.content
         }))
@@ -721,7 +735,8 @@ ${conversationContext}
               conversation_id: activeConversationId!,
               sender_role: 'ai',
               content: formattedText,
-            })
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any)
             .select()
             .single();
           if (aiMsgError) {
@@ -732,6 +747,7 @@ ${conversationContext}
               variant: 'destructive',
             });
           } else if (aiMsgData) {
+            // @ts-expect-error Supabase types mismatch
             messageIdsRef.current.add(aiMsgData.id);
             setMessages((prev) => prev.map(m => m.id === tempId ? aiMsgData : m));
             currentStreamingIdRef.current = null;
@@ -760,10 +776,23 @@ ${conversationContext}
                 await persistFinal();
                 break;
               } else {
-                // 每个chunk都是纯文本，直接拼接
-                streamingMessageRef.current += dataStr;
-                // 实时格式化显示，但保存时会再次格式化
-                updateStreamingMessage(formatAIText(streamingMessageRef.current));
+                // 尝试解析JSON字符串（为了支持包含换行符的内容），如果失败则作为普通文本
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  if (typeof parsed === 'string') {
+                    streamingMessageRef.current += parsed;
+                  } else {
+                    // 如果解析出来不是字符串（可能是数字等），或者为了兼容旧逻辑，回退到原始字符串
+                    // 但通常api/chat.ts发送的都是stringified string
+                    streamingMessageRef.current += dataStr;
+                  }
+                } catch (e) {
+                  // 解析失败，说明是普通纯文本（旧格式）
+                  streamingMessageRef.current += dataStr;
+                }
+                
+                // 实时格式化显示，但保存时会再次格式化，流式输出时不去除末尾空格以保留换行
+                updateStreamingMessage(formatAIText(streamingMessageRef.current, false));
               }
             }
           }
@@ -778,7 +807,7 @@ ${conversationContext}
           } else if (dataStr) {
             streamingMessageRef.current += dataStr;
             // 实时格式化显示，但保存时会再次格式化
-            updateStreamingMessage(formatAIText(streamingMessageRef.current));
+            updateStreamingMessage(formatAIText(streamingMessageRef.current, false));
             await persistFinal();
           }
         }

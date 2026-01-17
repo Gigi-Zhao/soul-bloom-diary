@@ -64,6 +64,7 @@ const Auth = () => {
         
         toast.success("Account created! Please check your email to verify. 💌");
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       toast.error(error.message || "Authentication failed");
     } finally {
@@ -86,6 +87,7 @@ const Auth = () => {
       });
 
       if (error) throw error;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       toast.error(error.message || "Google sign in failed");
       setLoading(false);

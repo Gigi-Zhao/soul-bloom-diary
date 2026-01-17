@@ -84,7 +84,9 @@ const ConversationHistory = () => {
 
         // Fetch last message for each conversation
         const conversationsWithMessages = await Promise.all(
-          (convData || []).map(async (conv) => {
+          (convData || []).map(async (item) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const conv = item as any;
             const { data: messages, error: msgError } = await supabase
               .from('messages')
               .select('content, created_at')
@@ -97,10 +99,12 @@ const ConversationHistory = () => {
               console.error(`Error fetching messages for conversation ${conv.id}:`, msgError);
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const msg = messages as any;
             return {
               ...conv,
-              last_message: messages ? messages.content : '暂无消息',
-              last_message_time: messages ? messages.created_at : conv.updated_at,
+              last_message: msg ? msg.content : '暂无消息',
+              last_message_time: msg ? msg.created_at : conv.updated_at,
             };
           })
         );

@@ -89,15 +89,18 @@ const Journals = () => {
         // Fetch unread comment counts for each entry
         const entriesWithUnread = await Promise.all(
           data.map(async (entry) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const e = entry as any;
             const { data: comments, error: commentError } = await supabase
               .from('journal_comments')
               .select('id', { count: 'exact' })
-              .eq('journal_entry_id', entry.id)
-              .eq('is_read', false);
+              .eq('journal_entry_id', e.id)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .eq('is_read' as any, false);
             
             const unreadCount = comments?.length || 0;
-            console.log(`[Journals] Entry ${entry.id} has ${unreadCount} unread comments`);
-            return { ...entry, unread_comments: unreadCount };
+            console.log(`[Journals] Entry ${e.id} has ${unreadCount} unread comments`);
+            return { ...e, unread_comments: unreadCount };
           })
         );
 

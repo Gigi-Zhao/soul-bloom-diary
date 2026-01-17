@@ -117,7 +117,8 @@ const JournalDetail = () => {
         setComments(commentsData as unknown as JournalComment[]);
 
         // Mark all comments as read
-        const unreadCommentIds = commentsData
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const unreadCommentIds = (commentsData as any[])
           ?.filter(c => !c.is_read)
           .map(c => c.id) || [];
 
@@ -125,7 +126,9 @@ const JournalDetail = () => {
           console.log('[JournalDetail] Marking comments as read:', unreadCommentIds);
           const { error: updateError } = await supabase
             .from('journal_comments')
-            .update({ is_read: true })
+            // @ts-expect-error Supabase types mismatch
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .update({ is_read: true } as any)
             .in('id', unreadCommentIds);
 
           if (updateError) {

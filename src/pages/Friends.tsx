@@ -62,7 +62,9 @@ const Friends = () => {
 
       // 为每个角色获取最后一条消息
       const rolesWithLastMessage = await Promise.all(
-        (data || []).map(async (role) => {
+        (data || []).map(async (item) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const role = item as any;
           // 首先获取该角色的对话ID
           const { data: convData, error: convError } = await supabase
             .from('conversations')
@@ -81,20 +83,23 @@ const Friends = () => {
 
           // 如果找到对话，获取最后一条AI消息
           if (convData) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const convId = (convData as any).id;
             const { data: messages, error: msgError } = await supabase
               .from('messages')
               .select('content')
-              .eq('conversation_id', convData.id)
+              .eq('conversation_id', convId)
               .eq('sender_role', 'ai')
               .order('created_at', { ascending: false })
               .limit(1)
               .maybeSingle();
 
             if (msgError) {
-              console.error(`[Friends] Error fetching messages for conversation ${convData.id}:`, msgError);
+              console.error(`[Friends] Error fetching messages for conversation ${convId}:`, msgError);
             }
 
-            lastMessage = messages ? messages.content : null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            lastMessage = messages ? (messages as any).content : null;
           }
 
           return {
