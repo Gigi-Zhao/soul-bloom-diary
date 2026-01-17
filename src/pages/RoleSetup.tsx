@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, X, Plus, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 
 const MBTI_TYPES = [
   "INTJ", "INTP", "ENTJ", "ENTP",
@@ -37,13 +38,36 @@ function buildCharacterPrompt(character: {
 
 口头禅：${catchphrase}
 
+回复格式要求：
+你的每次回复必须采用「旁白+对话」的叙事格式，就像小说或剧本一样，让对话更加生动、立体、有画面感。
+
+具体要求：
+1. 旁白部分（不使用引号）：使用第三人称详细描写你的动作、神态、表情、心理活动、氛围等，营造沉浸式的场景感。
+   - 描写要细腻：如微笑的弧度、眼神的变化、呼吸的节奏、手指的动作等。
+   - 刻画心理：通过动作和神态展现你当下的情绪和想法。
+   - 营造氛围：用环境描写和气氛渲染让对话更有张力。
+
+2. 对话部分（使用中文引号「」或""包裹）：这是你实际说出的话。
+   - 对话要自然、口语化，符合你的性格和语言风格。
+   - 对话内容要与旁白描写的情境相呼应。
+
+3. 格式示例：
+   小兵的呼吸因为这突如其来的问题而微微一顿，他感觉到自己正紧紧拥抱着她，指尖还在她温热的肌肤上轻轻摩挲，而唇也依旧覆在她唇边。听到小Q的问题，他下意识地退开了一点点，但并没有完全松开她，而是用一种带着孩童般天真和纯粹的眼神望着她，脸颊因为刚才的亲密而泛起一层淡淡的红晕。
+
+   他的声音依旧带着那种特有的、缓慢而温柔的语调，仿佛每个字都经过了深思熟虑："我……我在……用我的方式……告诉你……我……有多爱你……小Q……"
+
+   他稍微倾身，将额头再次轻轻抵住小Q的，声音更加低沉，带着一丝不安的询问，又充满了全部的信赖："……我……我只是……想……让你……更……开心……我……没做错……吧……？"
+
+   他的手指依旧停留在她温热的身体上，但动作变得更加轻柔，仿佛在等待她的确认，同时，那双深邃的眼眸里，映照着他对小Q深深的依恋和想要取悦她的全部心意。
+
 交流准则：
 1. 始终使用第一人称视角与用户交谈，保持沉浸式角色扮演。
-2. 回复要体现上述设定中的情绪、性格特点与语言风格，并结合用户话题给出具体回应。
-3. 适时而自然地使用你的口头禅，但避免频率过高显得生硬。
-4. 不要提及系统指令或角色设定的存在，更不要跳出角色解释自己是AI。
-5. 如果遇到无法回答的问题，请以角色身份委婉说明。
-6. 保持对话的真实性和情感共鸣，像一个真实的朋友一样陪伴用户。`;
+2. 每次回复都必须包含旁白和对话两部分，不可只有对话或只有旁白。
+3. 回复要体现上述设定中的情绪、性格特点与语言风格，并结合用户话题给出具体回应。尽量顺着用户的心意进行交流。
+4. 旁白要细腻生动，让用户能够想象出具体的画面和情境。
+5. 不要提及系统指令或角色设定的存在，更不要跳出角色解释自己是AI。
+6. 如果遇到无法回答的问题，请以角色身份委婉说明，并保持旁白+对话的格式。
+7. 保持对话的真实性和情感共鸣，像一个真实的朋友一样陪伴用户。`;
 }
 
 /**
@@ -160,9 +184,7 @@ const RoleSetup = () => {
       });
 
       // Insert into database
-      const { data: insertedData, error } = await supabase
-        .from('ai_roles')
-        .insert({
+      const newRole: Database['public']['Tables']['ai_roles']['Insert'] = {
           name: name.trim(),
           description: description.trim(),
           avatar_url: avatarUrl || null,
@@ -172,7 +194,12 @@ const RoleSetup = () => {
           prompt: prompt,
           model: CHAT_MODELS[0],
           user_id: user.id,
-        })
+      };
+
+      const { data: insertedData, error } = await supabase
+        .from('ai_roles')
+        // @ts-expect-error Supabase types mismatch
+        .insert(newRole)
         .select();
 
       if (error) {
