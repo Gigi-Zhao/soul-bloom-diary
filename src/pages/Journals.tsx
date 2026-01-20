@@ -104,12 +104,12 @@ const Journals = () => {
           })
         );
 
-        setEntries(entriesWithUnread);
+        setEntries(entriesWithUnread as unknown as JournalEntry[]);
 
         // Group entries by date
         const grouped = new Map<string, JournalEntry[]>();
         entriesWithUnread.forEach((entry) => {
-          const dateKey = entry.date || format(new Date(entry.created_at), 'yyyy-MM-dd');
+          const dateKey = (entry as unknown as { date?: string; created_at: string }).date || format(new Date((entry as unknown as { created_at: string }).created_at), 'yyyy-MM-dd');
           const normalizedKey = dateKey.replace(/\./g, '-');
           if (!grouped.has(normalizedKey)) {
             grouped.set(normalizedKey, []);

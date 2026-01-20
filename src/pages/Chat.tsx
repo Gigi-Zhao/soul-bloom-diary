@@ -113,7 +113,7 @@ const Chat = () => {
         .select('sender_role, content')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(5) as { data: Array<{ sender_role: string; content: string }> | null; error: unknown };
 
       if (fetchError) {
         console.error('[Title] ❌ 获取消息失败:', fetchError);
@@ -224,11 +224,11 @@ ${conversationContext}
       console.log('[Title] ✅ 标题验证通过，准备更新数据库');
 
       // Update conversation title in database
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase
         .from('conversations')
         // @ts-expect-error Supabase types mismatch
         .update({ title: generatedTitle })
-        .eq('id', conversationId);
+        .eq('id', conversationId) as unknown as Promise<{ error: unknown }>);
 
       if (updateError) {
         console.error('[Title] ❌ 更新标题失败:', updateError);
@@ -287,7 +287,7 @@ ${conversationContext}
             .eq('id', conversationIdParam)
             .eq('user_id', user.id)
             .eq('ai_role_id', roleId)
-            .maybeSingle();
+            .maybeSingle() as { data: Conversation | null; error: unknown };
 
           if (convError || !existingConv) {
             console.error('Error fetching conversation:', convError);
@@ -313,7 +313,7 @@ ${conversationContext}
             .eq('ai_role_id', roleId)
             .order('updated_at', { ascending: false })
             .limit(1)
-            .maybeSingle();
+            .maybeSingle() as { data: Conversation | null; error: unknown };
 
           if (existingConversations && !convError) {
             // Found existing conversation - load it
@@ -362,13 +362,13 @@ ${conversationContext}
       .from('messages')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true }) as { data: Message[] | null; error: unknown };
 
     if (error) {
       console.error('Error loading messages:', error);
       toast({
         title: "Error loading messages",
-        description: error.message,
+        description: (error as Error)?.message || 'Unknown error',
         variant: "destructive",
       });
     } else {
@@ -531,7 +531,7 @@ ${conversationContext}
           minute: '2-digit',
         });
         
-        const { data: newConv, error: convError } = await supabase
+        const { data: newConv, error: convError } = (await supabase
           .from('conversations')
           // @ts-expect-error Supabase types mismatch
           .insert({
@@ -540,7 +540,7 @@ ${conversationContext}
             title: `${timestamp} 对话`,
           })
           .select()
-          .single();
+          .single()) as { data: Conversation | null; error: unknown };
 
         if (convError || !newConv) {
           console.error('Error creating conversation:', convError);
@@ -563,8 +563,9 @@ ${conversationContext}
         // 如果有待保存的初始AI消息（来自气泡点击），现在保存到数据库
         if (pendingInitialAIMessageRef.current) {
           console.log('[Chat] 保存初始AI消息到数据库:', pendingInitialAIMessageRef.current);
-          const { data: initialAIMsg, error: initialAIError } = await supabase
+          const { data: initialAIMsg, error: initialAIError } = (await supabase
             .from('messages')
+            // @ts-expect-error - Supabase type inference issue with Insert type
             .insert({
               conversation_id: activeConversationId,
               sender_role: 'ai',
@@ -572,7 +573,7 @@ ${conversationContext}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any)
             .select()
-            .single();
+            .single()) as { data: Message | null; error: unknown };
 
           if (initialAIError) {
             console.error('[Chat] 保存初始AI消息失败:', initialAIError);
@@ -603,8 +604,9 @@ ${conversationContext}
       }
 
       // Insert user message
-      const { data: userMsgData, error: userMsgError } = await supabase
+      const { data: userMsgData, error: userMsgError } = (await supabase
         .from('messages')
+        // @ts-expect-error - Supabase type inference issue with Insert type
         .insert({
           conversation_id: activeConversationId,
           sender_role: 'user',
@@ -612,13 +614,13 @@ ${conversationContext}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
         .select()
-        .single();
+        .single()) as { data: Message | null; error: unknown };
 
       if (userMsgError) {
         console.error('Error sending message:', userMsgError);
         toast({
           title: "Error sending message",
-          description: userMsgError.message,
+          description: (userMsgError as Error)?.message || 'Unknown error',
           variant: "destructive",
         });
         setIsLoading(false);
@@ -644,7 +646,7 @@ ${conversationContext}
         .select('id, sender_role, content, created_at')
         .eq('conversation_id', activeConversationId)
         .order('created_at', { ascending: false })  // 先降序获取最新的
-        .limit(20);
+        .limit(20) as { data: Array<{ id: string; sender_role: string; content: string; created_at: string }> | null };
 
       // 反转顺序，使最旧的在前，最新的在后
       const conversationHistory = (historyData || []).reverse();
@@ -729,8 +731,9 @@ ${conversationContext}
           if (!finalText) return;
           // 格式化AI回复文本，去除多余空格
           const formattedText = formatAIText(finalText);
-          const { data: aiMsgData, error: aiMsgError } = await supabase
+          const { data: aiMsgData, error: aiMsgError } = (await supabase
             .from('messages')
+            // @ts-expect-error - Supabase type inference issue with Insert type
             .insert({
               conversation_id: activeConversationId!,
               sender_role: 'ai',
@@ -738,12 +741,12 @@ ${conversationContext}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any)
             .select()
-            .single();
+            .single()) as { data: Message | null; error: unknown };
           if (aiMsgError) {
             console.error('Error saving AI reply:', aiMsgError);
             toast({
               title: 'Error saving AI reply',
-              description: aiMsgError.message,
+              description: (aiMsgError as Error)?.message || 'Unknown error',
               variant: 'destructive',
             });
           } else if (aiMsgData) {

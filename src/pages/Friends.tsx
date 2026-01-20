@@ -69,14 +69,14 @@ const Friends = () => {
           const { data: convData, error: convError } = await supabase
             .from('conversations')
             .select('id')
-            .eq('ai_role_id', role.id)
+            .eq('ai_role_id', (role as unknown as { id: string }).id)
             .eq('user_id', user.id)
             .order('updated_at', { ascending: false })
             .limit(1)
-            .maybeSingle();
+            .maybeSingle() as { data: { id: string } | null; error: unknown };
 
           if (convError) {
-            console.error(`[Friends] Error fetching conversation for role ${role.id}:`, convError);
+            console.error(`[Friends] Error fetching conversation for role ${(role as unknown as { id: string }).id}:`, convError);
           }
 
           let lastMessage = null;
@@ -92,7 +92,7 @@ const Friends = () => {
               .eq('sender_role', 'ai')
               .order('created_at', { ascending: false })
               .limit(1)
-              .maybeSingle();
+              .maybeSingle() as { data: { content: string } | null; error: unknown };
 
             if (msgError) {
               console.error(`[Friends] Error fetching messages for conversation ${convId}:`, msgError);
@@ -103,14 +103,14 @@ const Friends = () => {
           }
 
           return {
-            ...role,
+            ...(role as unknown as Record<string, unknown>),
             last_message: lastMessage
           };
         })
       );
 
       console.log(`[Friends] Loaded ${rolesWithLastMessage?.length || 0} AI roles with last messages`);
-      setAllRoles(rolesWithLastMessage || []);
+      setAllRoles(rolesWithLastMessage as unknown as AIRole[]);
       setLoading(false);
     };
 

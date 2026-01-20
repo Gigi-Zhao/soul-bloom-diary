@@ -90,13 +90,13 @@ const ConversationHistory = () => {
             const { data: messages, error: msgError } = await supabase
               .from('messages')
               .select('content, created_at')
-              .eq('conversation_id', conv.id)
+              .eq('conversation_id', (conv as unknown as { id: string }).id)
               .order('created_at', { ascending: false })
               .limit(1)
-              .maybeSingle();
+              .maybeSingle() as { data: { content: string; created_at: string } | null; error: unknown };
 
             if (msgError) {
-              console.error(`Error fetching messages for conversation ${conv.id}:`, msgError);
+              console.error(`Error fetching messages for conversation ${(conv as unknown as { id: string }).id}:`, msgError);
             }
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,7 +109,7 @@ const ConversationHistory = () => {
           })
         );
 
-        setConversations(conversationsWithMessages);
+        setConversations(conversationsWithMessages as unknown as Conversation[]);
       }
       setLoading(false);
     };

@@ -51,6 +51,22 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(400).json({ error: "Invalid request: messages required" });
         }
 
+        // Inject Anti-Repetition Rules into System Prompt
+        const antiRepetitionPrompt = `
+            # Anti-Repetition Rules (反重复规则 - 必须严格执行)
+            1）**禁止句式固化：** 严禁连续两段回复使用相同的句式开头（如禁止连续使用“他看着你...”、“他伸出手...”）。必须交替使用对话描写、心理描写和环境描写。
+            2）**禁止车轱辘话：** 如果在上一轮对话中已经表达过某个意思（如“我很想你”），在本轮回复中**严禁再次通过口语表达同样的内容**，必须改为通过**行动**（如拥抱、沉默、递东西）来体现。
+            3）**推进剧情：** 每一轮回复必须包含一个新的信息增量或动作，严禁原地踏步。
+            4）**动态描写：** 不要只描写静态的状态（“他很生气”），要描写动态的变化（“他手中的玻璃杯被捏出了裂纹”）。
+            `;
+
+        const finalMessages = messages.map(msg => {
+            if (msg.role === 'system' && typeof msg.content === 'string') {
+                return { ...msg, content: msg.content + "\n\n" + antiRepetitionPrompt };
+            }
+            return msg;
+        });
+
         // 获取模型列表（包含请求指定的模型和默认模型列表）
         const models = getChatModelsForRequest();
         
@@ -71,8 +87,11 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                     },
                     body: JSON.stringify({
                         model: model,
-                        messages,
+                        messages: finalMessages,
                         stream: true,
+                        frequency_penalty: 0.5,
+                        presence_penalty: 0.3,
+                        temperature: 0.85,
                     }),
                 });
 

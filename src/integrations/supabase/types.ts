@@ -54,19 +54,45 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['conversations']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['conversations']['Insert']>;
+        Insert: {
+          id?: string;
+          user_id: string;
+          ai_role_id: string;
+          title?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          ai_role_id?: string;
+          title?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
       };
       messages: {
         Row: {
           id: string;
           conversation_id: string;
-          role: 'user' | 'ai' | 'system';
+          sender_role: 'user' | 'ai' | 'system';
           content: string;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['messages']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['messages']['Insert']>;
+        Insert: {
+          id?: string;
+          conversation_id: string;
+          sender_role: 'user' | 'ai' | 'system';
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          conversation_id?: string;
+          sender_role?: 'user' | 'ai' | 'system';
+          content?: string;
+          created_at?: string;
+        };
       };
       journal_comments: {
         Row: {
