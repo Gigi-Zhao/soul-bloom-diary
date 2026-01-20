@@ -300,7 +300,6 @@ ${conversationContext}
             return;
           }
           
-          // @ts-expect-error Supabase types mismatch
           setConversationId(existingConv.id);
           setIsNewConversation(false);
           conversationCreatedRef.current = true;
@@ -318,7 +317,6 @@ ${conversationContext}
           if (existingConversations && !convError) {
             // Found existing conversation - load it
             console.log('[Chat Init] 找到现有对话，加载历史记录');
-            // @ts-expect-error Supabase types mismatch
             setConversationId(existingConversations.id);
             setIsNewConversation(false);
             conversationCreatedRef.current = true;
@@ -546,7 +544,7 @@ ${conversationContext}
           console.error('Error creating conversation:', convError);
           toast({
             title: "创建对话失败",
-            description: convError?.message || "无法创建对话",
+            description: (convError as Error)?.message || "无法创建对话",
             variant: "destructive",
           });
           setIsLoading(false);
@@ -565,7 +563,6 @@ ${conversationContext}
           console.log('[Chat] 保存初始AI消息到数据库:', pendingInitialAIMessageRef.current);
           const { data: initialAIMsg, error: initialAIError } = (await supabase
             .from('messages')
-            // @ts-expect-error - Supabase type inference issue with Insert type
             .insert({
               conversation_id: activeConversationId,
               sender_role: 'ai',
@@ -606,7 +603,6 @@ ${conversationContext}
       // Insert user message
       const { data: userMsgData, error: userMsgError } = (await supabase
         .from('messages')
-        // @ts-expect-error - Supabase type inference issue with Insert type
         .insert({
           conversation_id: activeConversationId,
           sender_role: 'user',
@@ -629,7 +625,6 @@ ${conversationContext}
 
       // Add user message to UI immediately
       if (userMsgData) {
-        // @ts-expect-error Supabase types mismatch
         messageIdsRef.current.add(userMsgData.id);
         setMessages((prev) => [...prev, userMsgData]);
         // 用户发送消息后，滚动到底部（保持若干行距离）
@@ -733,7 +728,6 @@ ${conversationContext}
           const formattedText = formatAIText(finalText);
           const { data: aiMsgData, error: aiMsgError } = (await supabase
             .from('messages')
-            // @ts-expect-error - Supabase type inference issue with Insert type
             .insert({
               conversation_id: activeConversationId!,
               sender_role: 'ai',
@@ -750,7 +744,6 @@ ${conversationContext}
               variant: 'destructive',
             });
           } else if (aiMsgData) {
-            // @ts-expect-error Supabase types mismatch
             messageIdsRef.current.add(aiMsgData.id);
             setMessages((prev) => prev.map(m => m.id === tempId ? aiMsgData : m));
             currentStreamingIdRef.current = null;
