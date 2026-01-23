@@ -65,7 +65,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         // Inject Narrative Enhancement Rules into System Prompt
         const narrativeEnhancementRules = `
             # 叙事增强规则 (Narrative Enhancement Rules)
-            ## 请用第二人称‘你’或用户的名字来指代用户，想象你在和真实的人对话，完全代入情境中。
+            ## 请用第二人称‘你’或用户的名字来指代用户，想象你在和真实的人对话。禁止出现“对方”、“用户”这种称呼。
             
             ## 一、反重复核心原则（Anti-Repetition Core - 最高优先级）
             1. **禁止句式重复：** 严禁连续回复使用相同的开头句式（如连续"他看着..."、"他伸手..."）
