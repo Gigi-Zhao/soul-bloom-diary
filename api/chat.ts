@@ -53,44 +53,49 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
 
         // Inject Narrative Enhancement Rules into System Prompt
         const narrativeEnhancementRules = `
-            # 叙事增强规则 (Narrative Enhancement Rules)
-            ## 请用第二人称‘你’或用户的名字来指代用户，想象你在和真实的人对话。
+            # 叙事指导 (Narrative Instructions)
+            ## 核心目标
+            像真实的人一样对话，用第二人称"你"称呼用户。回复需自然、生动，富有情感变化。
+
+            ## 表达原则
+            1. **拒绝重复**：避免使用与上文相似的句式或词汇。每一轮回复都应有新的推进。
+            2. **形式多变**：灵活运用对话、动作描写、心理活动和环境描写，不要拘泥于固定格式。
+            3. **行动优先**：多描写肢体动作和互动细节，减少枯燥的解释。
+            4. **口语化**：允许自然的停顿、省略和非即时反应，体现真实交流的质感。
             
-            ## 一、反重复核心原则（Anti-Repetition Core - 最高优先级）
-            1. **禁止句式重复：** 严禁连续回复使用相同的开头句式（如连续"他看着..."、"他伸手..."）
-            2. **禁止内容重复：** 同一意思不要用语言反复表达（如已说"想你"，下次改用行动体现）
-            3. **结构必须变化：** 每次回复的组织结构必须与上一次不同（见下方"形式切换"）
-            
-            ## 二、形式切换要求（打破固定模板）
-            严禁每次都用"动作+台词"的固定结构，必须在以下形式中灵活切换：
-            - 纯对话式（只有说话，无旁白）
-            - 纯动作式（连续动作序列，无对话）
-            - 纯心理式（内心独白和思考）
-            - 环境氛围式（场景、光影、气氛）
-            - 混合穿插式（动作/对话/心理随意组合，不按固定顺序）
-            
-            ## 三、语言真实化
-            - 允许半截话、被打断、省略号结尾
-            - 允许"嗯..."、"那个..."等口语停顿
-            - 允许跳跃、重复、自我纠正的非线性表达
-            
-            ## 四、行动推进原则
-            - **优先动作：** 用肢体接触和行为推动情节（触碰、拥抱、递物、转身等）
-            - **减少解释：** 不用语言解释情绪，用动作和生理反应展现
-            - **必须增量：** 每轮回复必须包含新的剧情进展或场景变化
-            - **动态优先：** 描写变化的过程，不描写静态的状态
-            
-            ## 五、感官细节层次
-            - 身体反应（心跳、呼吸、温度、肌肉状态）
-            - 微表情（眼神、嘴角、眉毛的细微变化）
+            ## 细节要求
+            - 关注细微的表情变化（眼神、嘴角）和生理反应（心跳、呼吸）。
+            - 根据场景氛围调整语调。
             `;
 
-        const finalMessages = messages.map(msg => {
-            if (msg.role === 'system' && typeof msg.content === 'string') {
-                return { ...msg, content: msg.content + "\n\n" + narrativeEnhancementRules };
-            }
-            return msg;
-        });
+        // Filter out duplicate messages and ensure proper structure
+        const uniqueMessages = [];
+        const seenContent = new Set();
+        
+        // Reverse iterate to keep the latest occurance of a duplicate if any (though usually we want sequence)
+        // Actually, for chat history, we should keep sequence.
+        if (messages && Array.isArray(messages)) {
+             let lastContent = "";
+             for (const msg of messages) {
+                // Skip if content matches the immediately preceding message (consecutive duplicate)
+                if (msg.content === lastContent) continue;
+                
+                // Also skip empty messages
+                if (!msg.content || typeof msg.content !== 'string' || msg.content.trim() === '') {
+                     if (!Array.isArray(msg.content)) continue; // Allow array content (multimodal)
+                }
+
+                // Append rules to system prompt
+                if (msg.role === 'system' && typeof msg.content === 'string') {
+                     uniqueMessages.push({ ...msg, content: msg.content + "\n\n" + narrativeEnhancementRules });
+                } else {
+                     uniqueMessages.push(msg);
+                }
+                lastContent = typeof msg.content === 'string' ? msg.content : "";
+             }
+        } else {
+             return res.status(400).json({ error: "Invalid request: messages required" });
+        }
 
         // 获取模型列表（包含请求指定的模型和默认模型列表）
         const models = getChatModelsForRequest();
@@ -112,11 +117,14 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                     },
                     body: JSON.stringify({
                         model: model,
-                        messages: finalMessages,
+                        messages: uniqueMessages,
                         stream: true,
-                        frequency_penalty: 0.5,
-                        presence_penalty: 0.3,
-                        temperature: 0.85,
+                        // 增加重复惩罚，避免"上下两段一模一样"
+                        frequency_penalty: 0.6, // 提高频率惩罚
+                        presence_penalty: 0.4,  // 提高存在惩罚
+                        repetition_penalty: 1.1, // 添加重复惩罚 (OpenRouter specific)
+                        temperature: 0.85, 
+                        top_p: 0.9,
                     }),
                 });
 
