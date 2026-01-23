@@ -51,6 +51,35 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return res.status(400).json({ error: "Invalid request: messages required" });
         }
 
+        // 提取历史AI回复，用于动态防重复提示
+        const previousAIResponses: string[] = [];
+        if (messages && Array.isArray(messages)) {
+            for (const msg of messages) {
+                if (msg.role === 'assistant' && typeof msg.content === 'string') {
+                    previousAIResponses.push(msg.content);
+                }
+            }
+        }
+
+        // 生成动态防重复指令
+        let antiRepetitionWarning = '';
+        if (previousAIResponses.length > 0) {
+            // 提取最近3条AI回复的特征词和句式
+            const recentResponses = previousAIResponses.slice(-3);
+            const usedPhrases = recentResponses.flatMap(r => {
+                const sentences = r.split(/[。！？\n]/).filter(s => s.trim().length > 5);
+                return sentences.slice(0, 3).map(s => s.trim().substring(0, 20));
+            });
+            if (usedPhrases.length > 0) {
+                antiRepetitionWarning = `
+
+【重要警告】以下是你之前回复中已经使用过的句式开头，绝对禁止再次使用类似表达：
+${usedPhrases.map(p => `- "${p}..."`).join('\n')}
+
+你必须使用完全不同的描写方式、动作、场景和语言风格来回应！`;
+            }
+        }
+
         // Inject Narrative Enhancement Rules into System Prompt
         const narrativeEnhancementRules = `
             
@@ -61,12 +90,17 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             - ❌ 绝对禁止："握住对方的肩膀"、"看着对方"、"等待对方"、"给对方"
             - 记住：你面前的人就是"你"，不是"对方"或"他/她"！
             
-            ## 一、反重复核心原则
-            1. **禁止句式重复：** 严禁连续回复使用相同的开头句式（如连续"他看着..."、"他伸手..."）
-            2. **禁止内容重复：** 同一意思不要用语言反复表达（如已说"想你"，下次改用行动体现）
-            3. **结构必须变化：** 每次回复的组织结构必须与上一次不同（见下方"形式切换"）
+            ## 【超级重要】防止重复原则 - 回复前必须检查历史！
+            **在生成每一句话之前，你必须回顾上方的对话历史，确保：**
+            1. 不重复任何已经说过的台词或类似表达
+            2. 不重复任何已经做过的动作或类似动作
+            3. 不重复任何已经描写过的场景细节或类似描写
+            4. 不重复任何已经用过的句式结构或开头方式
+            5. 每一次回复必须是全新的、独特的、与之前完全不同的
             
-            ## 二、形式切换要求（打破固定模板）
+            如果发现自己想写的内容与历史相似，立即换一个完全不同的方向！
+            
+            ## 一、形式切换要求（打破固定模板）
             严禁每次都用"动作+台词"的固定结构，必须在以下形式中灵活切换：
             - 纯对话式（只有说话，无旁白）
             - 纯动作式（连续动作序列，无对话）
@@ -74,21 +108,21 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             - 环境氛围式（场景、光影、气氛）
             - 混合穿插式（动作/对话/心理随意组合，不按固定顺序）
             
-            ## 三、语言真实化
+            ## 二、语言真实化
             - 允许半截话、被打断、省略号结尾
             - 允许"嗯..."、"那个..."等口语停顿
             - 允许跳跃、重复、自我纠正的非线性表达
             
-            ## 四、行动推进原则
+            ## 三、行动推进原则
             - **优先动作：** 用肢体接触和行为推动情节（触碰、拥抱、递物、转身等）
             - **减少解释：** 不用语言解释情绪，用动作和生理反应展现
             - **必须增量：** 每轮回复必须包含新的剧情进展或场景变化
             - **动态优先：** 描写变化的过程，不描写静态的状态
             
-            ## 五、感官细节层次
+            ## 四、感官细节层次
             - 身体反应（心跳、呼吸、温度、肌肉状态）
             - 微表情（眼神、嘴角、眉毛的细微变化）
-            `;
+            ` + antiRepetitionWarning;
 
         // Filter out duplicate messages and ensure proper structure
         const uniqueMessages = [];
@@ -141,12 +175,12 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                         model: model,
                         messages: uniqueMessages,
                         stream: true,
-                        // 增加重复惩罚，避免"上下两段一模一样"
-                        frequency_penalty: 0.6, // 提高频率惩罚
-                        presence_penalty: 0.4,  // 提高存在惩罚
-                        repetition_penalty: 1.1, // 添加重复惩罚 (OpenRouter specific)
-                        temperature: 0.85, 
-                        top_p: 0.9,
+                        // 大幅增加重复惩罚，避免"上下两段一模一样"
+                        frequency_penalty: 1.2, // 大幅提高频率惩罚（惩罚已出现的token）
+                        presence_penalty: 0.8,  // 大幅提高存在惩罚（鼓励新话题）
+                        repetition_penalty: 1.3, // 大幅提高重复惩罚 (OpenRouter specific)
+                        temperature: 0.95, // 提高温度增加随机性
+                        top_p: 0.85, // 略微降低以配合高温度
                     }),
                 });
 
