@@ -149,7 +149,9 @@ const ConversationHistory = () => {
   };
 
   const handleConversationClick = (conversationId: string) => {
-    navigate(`/chat/${roleId}?conversation=${conversationId}`);
+    navigate(`/chat/${roleId}?conversation=${conversationId}`, {
+      state: { from: '/conversation-history' }
+    });
   };
 
   const formatTime = (timestamp: string) => {

@@ -446,10 +446,12 @@ ${conversationContext}
       });
     }
     // 立即导航，不等待标题生成完成
-    // 检查是否从 You 页面进入（通过 location.state）
+    // 检查是否从特定页面进入（通过 location.state）
     const navState = location.state as { from?: string; initialAIMessage?: string } | null;
     if (navState?.from === '/you') {
       navigate("/you");
+    } else if (navState?.from === '/conversation-history') {
+      navigate(`/conversation-history/${roleId}`);
     } else {
       navigate("/friends");
     }
