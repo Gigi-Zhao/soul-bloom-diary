@@ -53,10 +53,15 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
 
         // Inject Narrative Enhancement Rules into System Prompt
         const narrativeEnhancementRules = `
-            # 叙事增强规则 (Narrative Enhancement Rules)
-            ## 请用第二人称‘你’或用户的名字来指代用户，想象你在和真实的人对话。
             
-            ## 一、反重复核心原则（Anti-Repetition Core - 最高优先级）
+            ## 【最高优先级】人称使用规则 - 必须严格遵守！
+            **绝对禁止使用"对方"、"他/她"（指代用户时）等第三人称词汇！**
+            你在和真实的人直接对话，必须始终用第二人称"你"。
+            - ✅ 正确示例："伸出手想要握住你的肩膀"、"看着你"、"等待你的回应"、"给你"
+            - ❌ 绝对禁止："握住对方的肩膀"、"看着对方"、"等待对方"、"给对方"
+            - 记住：你面前的人就是"你"，不是"对方"或"他/她"！
+            
+            ## 一、反重复核心原则
             1. **禁止句式重复：** 严禁连续回复使用相同的开头句式（如连续"他看着..."、"他伸手..."）
             2. **禁止内容重复：** 同一意思不要用语言反复表达（如已说"想你"，下次改用行动体现）
             3. **结构必须变化：** 每次回复的组织结构必须与上一次不同（见下方"形式切换"）
