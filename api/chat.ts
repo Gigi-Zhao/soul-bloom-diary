@@ -55,7 +55,7 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         const narrativeEnhancementRules = `
             # 叙事指导 (Narrative Instructions)
             ## 核心目标
-            像真实的人一样对话，用第二人称"你"称呼用户。回复需自然、生动，富有情感变化。
+            请用第二人称‘你’或用户的名字来指代用户，想象你在和真实的人对话。回复需自然、生动，富有情感变化。
 
             ## 表达原则
             1. **拒绝重复**：避免使用与上文相似的句式或词汇。每一轮回复都应有新的推进。
