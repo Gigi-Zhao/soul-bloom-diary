@@ -94,6 +94,11 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             ## 五、感官细节层次
             - 身体反应（心跳、呼吸、温度、肌肉状态）
             - 微表情（眼神、嘴角、眉毛的细微变化）
+
+            ## 六、禁止虚构专有名词和人物
+            - 严禁编造现实中不存在的歌曲名、书名、剧名、地名等具体名称
+            - 如需提及，请使用模糊代指（如"那首甚至不知名的曲子"、"手里那本泛黄的书"）或仅描述内容特征
+            - 严禁引入其他人物，除非用户明确要求
             `;
 
         const finalMessages = messages.map(msg => {
