@@ -20,6 +20,7 @@
  * - 'mistralai/mistral-7b-instruct:free' - Mistral AI 指令模型
  */
 export const CHAT_MODELS = [
+  'deepseek/deepseek-r1-0528:free',
   'mistralai/devstral-2512:free',
   'xiaomi/mimo-v2-flash:free'
 ];
