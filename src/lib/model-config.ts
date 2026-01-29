@@ -20,6 +20,12 @@
  * - 'mistralai/mistral-7b-instruct:free' - Mistral AI 指令模型
  */
 export const CHAT_MODELS = [
+  'anthropic/claude-sonnet-4.5',
+  'google/gemini-3-pro-preview',
+  'deepseek/deepseek-v3.2',
+  'google/gemini-3-flash-preview',
+  'x-ai/grok-4.1-fast',
+  'mistralai/mistral-small-creative',
   'tngtech/deepseek-r1t2-chimera:free',
   'z-ai/glm-4.5-air:free',
   'deepseek/deepseek-r1-0528:free',
