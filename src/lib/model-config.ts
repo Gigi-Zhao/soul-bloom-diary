@@ -20,7 +20,14 @@
  * - 'mistralai/mistral-7b-instruct:free' - Mistral AI 指令模型
  */
 export const CHAT_MODELS = [
+  'tngtech/deepseek-r1t2-chimera:free',
+  'z-ai/glm-4.5-air:free',
   'deepseek/deepseek-r1-0528:free',
+  'arcee-ai/trinity-large-preview:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemini-2.0-flash-exp:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
   'mistralai/devstral-2512:free',
   'xiaomi/mimo-v2-flash:free'
 ];

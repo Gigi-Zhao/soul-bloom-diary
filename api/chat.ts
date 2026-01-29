@@ -55,12 +55,15 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         }
 
         const body = (req as { body?: unknown }).body as
-            | { model?: string; messages?: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> }
+            | { model?: string; messages?: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }>; preferredModel?: string }
             | undefined;
         const messages = body?.messages;
         if (!Array.isArray(messages) || messages.length === 0) {
             return res.status(400).json({ error: "Invalid request: messages required" });
         }
+        
+        // 临时测试功能：如果前端指定了优先模型，则优先使用
+        const preferredModel = body?.preferredModel;
 
         // Inject Narrative Enhancement Rules into System Prompt
         const narrativeEnhancementRules = `
@@ -109,7 +112,15 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
         });
 
         // 获取模型列表（包含请求指定的模型和默认模型列表）
-        const models = getChatModelsForRequest();
+        let models = getChatModelsForRequest();
+        
+        // 如果前端指定了优先模型，将其放在首位
+        if (preferredModel && models.includes(preferredModel)) {
+            models = [preferredModel, ...models.filter(m => m !== preferredModel)];
+        } else if (preferredModel) {
+            // 如果指定的模型不在列表中，也添加到首位尝试
+            models = [preferredModel, ...models];
+        }
         
         let lastError = "";
 

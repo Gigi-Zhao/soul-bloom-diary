@@ -4,6 +4,8 @@ import { ArrowLeft, Send, MoreVertical, History, MessageSquarePlus, Trash2 } fro
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CHAT_MODELS } from "@/lib/model-config";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,6 +76,11 @@ const Chat = () => {
   
   // 从气泡点击传递来的初始AI消息（未持久化）
   const pendingInitialAIMessageRef = useRef<string | null>(null);
+  
+  // 模型选择（临时测试功能）
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return localStorage.getItem('chat-test-model') || CHAT_MODELS[0];
+  });
 
   // Function to update streaming message in UI
   const updateStreamingMessage = (content: string) => {
@@ -683,6 +690,7 @@ ${conversationContext}
               body: JSON.stringify({
                 model: aiRole.model,
                 messages: aiMessages,
+                preferredModel: selectedModel, // 临时测试功能：优先使用选择的模型
               }),
               signal: controller.signal,
               cache: 'no-store',
@@ -860,6 +868,21 @@ ${conversationContext}
           <h1 className="font-semibold text-foreground">{aiRole.name}</h1>
           <p className="text-xs text-muted-foreground">{aiRole.description}</p>
         </div>
+        <Select value={selectedModel} onValueChange={(value) => {
+          setSelectedModel(value);
+          localStorage.setItem('chat-test-model', value);
+        }}>
+          <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CHAT_MODELS.map((model) => (
+              <SelectItem key={model} value={model} className="text-xs">
+                {model.split('/').pop()?.split(':')[0] || model}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
