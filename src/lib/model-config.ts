@@ -29,7 +29,7 @@ export const CHAT_MODELS = [
   'mistralai/mistral-small-3.1-24b-instruct:free',
   'qwen/qwen3-next-80b-a3b-instruct:free',
   'mistralai/devstral-2512:free',
-  'xiaomi/mimo-v2-flash:free'
+  'xiaomi/mimo-v2-flash',
 ];
 
 /**

@@ -223,6 +223,10 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
                         maybeFlush.flushHeaders();
                     }
 
+                    // 先发送模型信息（用于前端日志）
+                    res.write(`event: model\n`);
+                    res.write(`data: ${JSON.stringify({ model })}\n\n`);
+
                     // Manually simulate stream
                     const chunks = content.split(/(.{10})/g).filter(Boolean); // Split into small chunks
                     for (const chunk of chunks) {

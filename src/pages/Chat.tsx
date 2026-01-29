@@ -730,6 +730,7 @@ ${conversationContext}
         const reader = aiRes.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let usedModel = 'unknown'; // 记录实际使用的模型
 
         const persistFinal = async () => {
           const finalText = streamingMessageRef.current;
@@ -776,15 +777,34 @@ ${conversationContext}
             buffer = buffer.slice(idx + 1);
             const line = rawLine.replace(/\r$/, '');
             if (!line) continue;
+            
+            // 处理event类型
+            if (line.startsWith('event:')) {
+              const eventType = line.slice(6).trim();
+              if (eventType === 'model') {
+                // 下一行应该是data
+                continue;
+              }
+            }
+            
             if (line.startsWith('data:')) {
               const dataStr = line.slice(5); // 保留前导空格
               if (dataStr.trim() === '[DONE]') {
+                console.log(`%c[AI Response] Used model: ${usedModel}`, 'color: #10b981; font-weight: bold');
                 await persistFinal();
                 break;
               } else {
                 // 尝试解析JSON字符串（为了支持包含换行符的内容），如果失败则作为普通文本
                 try {
                   const parsed = JSON.parse(dataStr);
+                  // 检查是否是model事件的数据
+                  if (parsed && typeof parsed === 'object' && 'model' in parsed) {
+                    usedModel = parsed.model;
+                    console.log(`%c[AI Request] Selected model: ${selectedModel}`, 'color: #3b82f6; font-weight: bold');
+                    console.log(`%c[AI Request] Actually using: ${usedModel}`, 'color: #10b981; font-weight: bold');
+                    continue; // 跳过model事件数据，不添加到消息内容
+                  }
+                  
                   if (typeof parsed === 'string') {
                     streamingMessageRef.current += parsed;
                   } else {
