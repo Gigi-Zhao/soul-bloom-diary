@@ -898,7 +898,7 @@ ${conversationContext}
           <SelectContent>
             {CHAT_MODELS.map((model) => (
               <SelectItem key={model} value={model} className="text-xs">
-                {model.split('/').pop()?.split(':')[0] || model}
+                {model.split('/').pop() || model}
               </SelectItem>
             ))}
           </SelectContent>

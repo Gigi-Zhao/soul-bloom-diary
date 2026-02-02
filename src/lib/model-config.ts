@@ -34,6 +34,7 @@ export const CHAT_MODELS = [
   'google/gemini-2.0-flash-exp:free',
   'mistralai/mistral-small-3.1-24b-instruct:free',
   'qwen/qwen3-next-80b-a3b-instruct:free',
+  'tngtech/deepseek-r1t2-chimera:free',
   'mistralai/devstral-2512:free',
   'xiaomi/mimo-v2-flash',
 ];
