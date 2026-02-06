@@ -111,16 +111,11 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             return msg;
         });
 
-        // 获取模型列表（包含请求指定的模型和默认模型列表）
-        let models = getChatModelsForRequest();
+        // 禁止自动切换模型 - 只使用前端指定的模型或第一个默认模型
+        const models = getChatModelsForRequest();
+        const model = preferredModel || models[0]; // 使用前端指定的模型，或默认使用第一个模型
         
-        // 如果前端指定了优先模型，将其放在首位
-        if (preferredModel && models.includes(preferredModel)) {
-            models = [preferredModel, ...models.filter(m => m !== preferredModel)];
-        } else if (preferredModel) {
-            // 如果指定的模型不在列表中，也添加到首位尝试
-            models = [preferredModel, ...models];
-        }
+        console.log(`[Chat] Using model: ${model} (no fallback)`);
         
         let lastError = "";
 
@@ -135,123 +130,110 @@ export default async function handler(req: VercelRequestLike, res: VercelRespons
             });
         }
 
-        // Retry Loop for Duplicate Content
+        // Retry Loop for Duplicate Content (仅针对同一个模型重试)
         const maxRetries = 3; 
         let currentMessages = [...finalMessages];
 
-        // 依次尝试模型
-        for (const model of models) {
-             let retryCount = 0;
-             while(retryCount <= maxRetries) {
-                try {
-                    console.log(`[Chat] Trying model: ${model}, Attempt: ${retryCount + 1}`);
-                    
-                    // On retry, we use non-streaming to inspect content first
-                    // But to keep simple structure we stream but buffer it? 
-                    // Better: We request non-streaming for validation, then if valid, we send it out.
-                    // However, that prevents streaming UI effect.
-                    // Compromise: We stream, but if we detect duplicates, we abort and retry silently? 
-                    // No, client already receiving stream. 
-                    // Better Strategy here: We MUST request full completion first, check it, then stream it out via our own stream if good.
-                    // This adds latency but guarantees unique content.
-                    
-                    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${apiKey}`,
-                            "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
-                            "X-Title": "Soul Bloom Diary",
-                        },
-                        body: JSON.stringify({
-                            model: model,
-                            messages: currentMessages,
-                            stream: false, // Turn off streaming to validate content
-                            frequency_penalty: 0.5,
-                            presence_penalty: 0.3,
-                            temperature: 0.85,
-                        }),
-                    });
+        let retryCount = 0;
+        while(retryCount <= maxRetries) {
+            try {
+                console.log(`[Chat] Trying model: ${model}, Attempt: ${retryCount + 1}`);
+                
+                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                        "HTTP-Referer": req.headers.referer || "https://soul-bloom-diary.vercel.app",
+                        "X-Title": "Soul Bloom Diary",
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: currentMessages,
+                        stream: false, // Turn off streaming to validate content
+                        frequency_penalty: 0.5,
+                        presence_penalty: 0.3,
+                        temperature: 0.85,
+                    }),
+                });
 
-                    if (!response.ok) {
-                        const text = await response.text().catch(() => "");
-                        lastError = `Model ${model} failed: ${response.status} ${text}`;
-                        console.warn(`[Chat] ${lastError}`);
-                        break; // Try next model on API error
-                    }
-
-                    const json = await response.json();
-                    const content = json.choices?.[0]?.message?.content || "";
-
-                    // 1. Check for sentence-level duplicates
-                    const newSentences = extractSentences(content);
-                    const duplicateSentences: string[] = [];
-                    for (const s of newSentences) {
-                        if (historySentences.has(s)) {
-                            duplicateSentences.push(s);
-                        }
-                    }
-
-                    if (duplicateSentences.length > 0) {
-                        console.warn(`[Chat] Detected duplicate content (Attempt ${retryCount+1}):`, duplicateSentences);
-                        
-                        // REJECT & RETRY
-                        if (retryCount < maxRetries) {
-                            retryCount++;
-                            // Add direct instruction to avoid specific duplicated sentences
-                            const warningMsg = {
-                                role: "system",
-                                content: `[SYSTEM WARNING] Your previous response contained repeated sentences found in history. \nABSOLUTELY FORBIDDEN to use these sentences again: \n${duplicateSentences.map(s => `"${s}"`).join('\n')}\n\nPlease rewrite entirely with new phrasing and actions.`
-                            };
-                            // Append warning temporary to messages
-                           currentMessages = [...finalMessages, warningMsg];
-                           continue;
-                        } else {
-                            // Max retries reached, just accept it (fallback)
-                            console.warn("[Chat] Max retries reached for duplicates. Sending anyway.");
-                            // Fall through to send logic
-                        }
-                    }
-
-                    // Content is valid (or max retries), stream it back to client manually
-                    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-                    res.setHeader("Cache-Control", "no-cache, no-transform");
-                    res.setHeader("Connection", "keep-alive");
-                    
-                    const maybeFlush = res as unknown as { flushHeaders?: () => void };
-                    if (typeof maybeFlush.flushHeaders === "function") {
-                        maybeFlush.flushHeaders();
-                    }
-
-                    // 先发送模型信息（用于前端日志）
-                    res.write(`event: model\n`);
-                    res.write(`data: ${JSON.stringify({ model })}\n\n`);
-
-                    // Manually simulate stream
-                    const chunks = content.split(/(.{10})/g).filter(Boolean); // Split into small chunks
-                    for (const chunk of chunks) {
-                        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-                        // Small delay not needed for Vercel functions really, but good for UI feel? 
-                        // No, act as fast as possible.
-                    }
-                    res.write(`data: [DONE]\n\n`);
-                    res.end();
-                    return; // Done successfully
-
-                } catch (e) {
-                    lastError = `Model ${model} error: ${e instanceof Error ? e.message : String(e)}`;
-                    console.warn(`[Chat] ${lastError}`);
-                    break; // Try next model on exception
+                if (!response.ok) {
+                    const text = await response.text().catch(() => "");
+                    lastError = `Model ${model} failed: ${response.status} ${text}`;
+                    console.error(`[Chat] ${lastError}`);
+                    // 不再尝试其他模型，直接返回错误
+                    res.statusCode = 500;
+                    return res.status(500).json({ error: lastError });
                 }
-             }
-             // If loop finished due to max retries on duplicates but 'continue' logic failed??
-             // Actually structure above breaks on API error to next model.
-             // If we need next model, we break inner loop.
+
+                const json = await response.json();
+                const content = json.choices?.[0]?.message?.content || "";
+
+                // 1. Check for sentence-level duplicates
+                const newSentences = extractSentences(content);
+                const duplicateSentences: string[] = [];
+                for (const s of newSentences) {
+                    if (historySentences.has(s)) {
+                        duplicateSentences.push(s);
+                    }
+                }
+
+                if (duplicateSentences.length > 0) {
+                    console.warn(`[Chat] Detected duplicate content (Attempt ${retryCount+1}):`, duplicateSentences);
+                    
+                    // REJECT & RETRY (同一个模型重试)
+                    if (retryCount < maxRetries) {
+                        retryCount++;
+                        // Add direct instruction to avoid specific duplicated sentences
+                        const warningMsg = {
+                            role: "system",
+                            content: `[SYSTEM WARNING] Your previous response contained repeated sentences found in history. \nABSOLUTELY FORBIDDEN to use these sentences again: \n${duplicateSentences.map(s => `"${s}"`).join('\n')}\n\nPlease rewrite entirely with new phrasing and actions.`
+                        };
+                        // Append warning temporary to messages
+                       currentMessages = [...finalMessages, warningMsg];
+                       continue;
+                    } else {
+                        // Max retries reached, just accept it (fallback)
+                        console.warn("[Chat] Max retries reached for duplicates. Sending anyway.");
+                        // Fall through to send logic
+                    }
+                }
+
+                // Content is valid (or max retries), stream it back to client manually
+                res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+                res.setHeader("Cache-Control", "no-cache, no-transform");
+                res.setHeader("Connection", "keep-alive");
+                
+                const maybeFlush = res as unknown as { flushHeaders?: () => void };
+                if (typeof maybeFlush.flushHeaders === "function") {
+                    maybeFlush.flushHeaders();
+                }
+
+                // 先发送模型信息（用于前端日志）
+                res.write(`event: model\n`);
+                res.write(`data: ${JSON.stringify({ model })}\n\n`);
+
+                // Manually simulate stream
+                const chunks = content.split(/(.{10})/g).filter(Boolean); // Split into small chunks
+                for (const chunk of chunks) {
+                    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                }
+                res.write(`data: [DONE]\n\n`);
+                res.end();
+                return; // Done successfully
+
+            } catch (e) {
+                lastError = `Model ${model} error: ${e instanceof Error ? e.message : String(e)}`;
+                console.error(`[Chat] ${lastError}`);
+                // 不再尝试其他模型，直接返回错误
+                res.statusCode = 500;
+                return res.status(500).json({ error: lastError });
+            }
         }
 
-        // If we get here, all models failed
+        // 如果所有重试都因为重复内容失败，返回错误
         res.statusCode = 500;
-        return res.status(500).json({ error: `All models failed. Last error: ${lastError}` });
+        return res.status(500).json({ error: `Model ${model} failed after ${maxRetries} retries. Last error: ${lastError}` });
 
     } catch (err: unknown) {
         res.statusCode = 500;
